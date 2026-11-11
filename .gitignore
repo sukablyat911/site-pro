@@ -1,0 +1,10 @@
+.env
+.env.*
+!.env.example
+node_modules/
+client/node_modules/
+client/dist/
+server/uploads/cars/*
+!server/uploads/cars/.gitkeep
+server/uploads/sell-submissions/*
+*.log
