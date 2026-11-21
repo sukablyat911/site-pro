@@ -7,9 +7,9 @@ const AdminPinAttempt = require('../models/AdminPinAttempt');
 const { getAdminConfig, getAdminPinHash } = require('../config/admin');
 
 const router = express.Router();
-const sessionCookieName = 'peluso_session';
+const sessionCookieName = '__Host-peluso_session';
 const sessionLifetimeMs = 7 * 24 * 60 * 60 * 1000;
-const adminPinChallengeLifetimeMs = 10 * 60 * 1000;
+const adminPinChallengeLifetimeMs = 60 * 1000;
 const adminPinLockoutMs = 30 * 60 * 1000;
 const adminPinMaxAttempts = 3;
 
@@ -25,18 +25,19 @@ function getSessionToken(req) {
 }
 
 function setSessionCookie(res, token, lifetimeMs = sessionLifetimeMs) {
-  const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
   res.setHeader(
     'Set-Cookie',
-    `${sessionCookieName}=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${Math.floor(lifetimeMs / 1000)}${secure}`,
+    `${sessionCookieName}=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${Math.ceil(lifetimeMs / 1000)}`,
   );
 }
 
 function clearSessionCookie(res) {
-  const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
   res.setHeader(
     'Set-Cookie',
-    `${sessionCookieName}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0${secure}`,
+    [
+      `${sessionCookieName}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`,
+      'peluso_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0',
+    ],
   );
 }
 
@@ -52,18 +53,30 @@ function validEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254;
 }
 
+function signupPasswordError(password) {
+  if (password.length < 8) return 'La password deve contenere almeno 8 caratteri.';
+  if (Buffer.byteLength(password, 'utf8') > 72) return 'La password non può superare 72 byte.';
+  if (!/\p{Ll}/u.test(password)) return 'Aggiungi almeno una lettera minuscola alla password.';
+  if (!/\p{Lu}/u.test(password)) return 'Aggiungi almeno una lettera maiuscola alla password.';
+  if (!/\p{N}/u.test(password)) return 'Aggiungi almeno un numero alla password.';
+  if (!/[^\p{L}\p{N}]/u.test(password)) return 'Aggiungi almeno un simbolo alla password.';
+  return '';
+}
+
 async function createSession(user, res) {
   const token = crypto.randomBytes(32).toString('base64url');
   const isAdmin = user.role === 'admin';
   const lifetimeMs = isAdmin ? adminPinChallengeLifetimeMs : sessionLifetimeMs;
+  const expiresAt = new Date(Date.now() + lifetimeMs);
   await AuthSession.create({
     userId: user._id,
     tokenHash: hashSessionToken(token),
     adminVerified: !isAdmin,
-    ...(isAdmin ? { pendingPinExpiresAt: new Date(Date.now() + lifetimeMs) } : {}),
-    expiresAt: new Date(Date.now() + lifetimeMs),
+    ...(isAdmin ? { pendingPinExpiresAt: expiresAt } : {}),
+    expiresAt,
   });
   setSessionCookie(res, token, lifetimeMs);
+  return isAdmin ? Math.max(0, expiresAt.getTime() - Date.now()) : null;
 }
 
 router.post('/signup', async (req, res) => {
@@ -78,8 +91,9 @@ router.post('/signup', async (req, res) => {
   if (!validEmail(email)) {
     return res.status(400).json({ error: 'Inserisci un indirizzo email valido.' });
   }
-  if (password.length < 8 || Buffer.byteLength(password, 'utf8') > 72) {
-    return res.status(400).json({ error: 'La password deve contenere almeno 8 caratteri e non superare 72 byte.' });
+  const passwordError = signupPasswordError(password);
+  if (passwordError) {
+    return res.status(400).json({ error: passwordError });
   }
 
   try {
@@ -107,25 +121,32 @@ router.post('/login', async (req, res) => {
     : typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
   const password = typeof body.password === 'string' ? body.password : '';
 
-  if ((!validEmail(identifier) && !/^[a-z0-9._-]{3,32}$/.test(identifier))
-    || password.length === 0 || Buffer.byteLength(password, 'utf8') > 72) {
-    return res.status(400).json({ error: 'Inserisci un nome utente o indirizzo email e una password validi.' });
+  if (!validEmail(identifier) && !/^[a-z0-9._-]{3,32}$/.test(identifier)) {
+    const error = /\s/.test(identifier) && !identifier.includes('@')
+      ? 'Il nome utente non può contenere spazi.'
+      : 'Inserisci un nome utente (3–32 caratteri, senza spazi) o un indirizzo email valido.';
+    return res.status(400).json({ error });
+  }
+  if (!password) {
+    return res.status(400).json({ error: 'Inserisci la password per continuare.' });
+  }
+  if (Buffer.byteLength(password, 'utf8') > 72) {
+    return res.status(400).json({ error: 'La password non può superare 72 byte.' });
   }
 
   try {
-    const adminConfig = getAdminConfig();
-    const email = adminConfig && identifier === adminConfig.username
-      ? adminConfig.email
-      : identifier;
-    const user = await User.findOne({ email }).select('+passwordHash');
+    const user = await User.findOne({
+      $or: [{ username: identifier }, { email: identifier }],
+    }).select('+passwordHash +security');
     const matches = user && await bcrypt.compare(password, user.passwordHash);
     if (!matches) {
       return res.status(401).json({ error: 'Nome utente/email o password non corretti.' });
     }
 
-    await createSession(user, res);
+    const adminPinExpiresInMs = await createSession(user, res);
     if (user.role === 'admin') {
-      return res.json({ requiresAdminPin: true });
+      const requiresAdminTotp = Boolean(user.security?.totpEnabled);
+      return res.json({ requiresAdminPin: !requiresAdminTotp, requiresAdminTotp, adminPinExpiresInMs });
     }
     return res.json({ user: publicUser(user) });
   } catch (error) {
@@ -146,24 +167,26 @@ router.get('/me', async (req, res) => {
       expiresAt: { $gt: new Date() },
     });
     if (!session) {
-      clearSessionCookie(res);
       return res.json({ user: null });
     }
 
-    const user = await User.findById(session.userId);
+    const user = await User.findById(session.userId).select('+security');
     if (!user) {
       await AuthSession.deleteOne({ _id: session._id });
-      clearSessionCookie(res);
       return res.json({ user: null });
     }
 
     if (user.role === 'admin' && !session.adminVerified) {
       if (!session.pendingPinExpiresAt || session.pendingPinExpiresAt <= new Date()) {
         await AuthSession.deleteOne({ _id: session._id });
-        clearSessionCookie(res);
         return res.json({ user: null });
       }
-      return res.json({ user: null, requiresAdminPin: true });
+      return res.json({
+        user: null,
+        requiresAdminPin: !user.security?.totpEnabled,
+        requiresAdminTotp: Boolean(user.security?.totpEnabled),
+        adminPinExpiresInMs: Math.max(0, session.pendingPinExpiresAt.getTime() - Date.now()),
+      });
     }
 
     return res.json({ user: publicUser(user) });
@@ -191,10 +214,13 @@ router.post('/admin-pin', async (req, res) => {
       return res.status(401).json({ error: 'La verifica è scaduta. Accedi di nuovo.' });
     }
 
-    const user = await User.findById(session.userId);
+    const user = await User.findById(session.userId).select('+security');
     if (!user || user.role !== 'admin') {
       clearSessionCookie(res);
       return res.status(403).json({ error: 'Verifica amministratore non disponibile.' });
+    }
+    if (user.security?.totpEnabled) {
+      return res.status(400).json({ error: 'Usa il codice TOTP o un codice di recupero per verificare l’accesso.' });
     }
     if (session.adminVerified) {
       return res.json({ user: publicUser(user) });
@@ -220,7 +246,7 @@ router.post('/admin-pin', async (req, res) => {
       );
     }
 
-    const pinHash = getAdminPinHash();
+    const pinHash = user.security?.adminPinHash || getAdminPinHash();
     if (!pinHash) {
       throw new Error('ADMIN_PIN_HASH is required when verifying admin access.');
     }

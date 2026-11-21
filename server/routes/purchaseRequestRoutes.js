@@ -1,9 +1,11 @@
 const express = require('express');
+const crypto = require('node:crypto');
 const mongoose = require('mongoose');
 const { getAuthenticatedUser, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 const requests = () => mongoose.connection.collection('vehicle_purchase_requests');
+const emailPattern = /^(?!\.)(?!.*\.\.)[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?(?:\.[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?)+$/i;
 
 async function requireCustomer(req, res, next) {
   try {
@@ -18,16 +20,36 @@ async function requireCustomer(req, res, next) {
   }
 }
 
+async function attachOptionalCustomer(req, res, next) {
+  try {
+    const user = await getAuthenticatedUser(req);
+    if (user && user.role !== 'user') {
+      return res.status(403).json({ error: 'Gli account amministratore non possono inviare richieste cliente.' });
+    }
+    req.user = user || null;
+    return next();
+  } catch (error) {
+    console.error('Purchase-request customer authorization failed:', error);
+    return res.status(500).json({ error: 'Non è stato possibile verificare il tuo account.' });
+  }
+}
+
+function hashGuestEmail(email) {
+  return crypto.createHash('sha256').update(email).digest('hex');
+}
+
 function requestView(request, includeContact = false) {
   return {
     id: request._id.toString(),
     vehicle: request.vehicle,
     status: request.status,
     createdAt: request.createdAt,
+    termsAccepted: request.termsAccepted === true,
+    termsAcceptedAt: request.termsAcceptedAt || null,
     ...(request.acceptedAt ? { acceptedAt: request.acceptedAt } : {}),
     ...(includeContact ? {
       customer: {
-        id: request.ownerId.toString(),
+        id: request.ownerId?.toString() || null,
         ...request.customer,
       },
     } : {}),
@@ -35,8 +57,33 @@ function requestView(request, includeContact = false) {
 }
 
 async function ensurePurchaseRequestIndexes() {
-  await requests().createIndex({ ownerId: 1, vehicleId: 1 }, { unique: true });
-  await requests().createIndex({ createdAt: -1 });
+  const collection = requests();
+  await collection.createIndex({ createdAt: -1 });
+  const indexes = await collection.indexes();
+  const ownerVehicleIndex = indexes.find((index) => index.name === 'ownerId_1_vehicleId_1');
+  if (ownerVehicleIndex && (
+    !ownerVehicleIndex.unique
+    || ownerVehicleIndex.partialFilterExpression?.ownerId?.$type !== 'objectId'
+    || Object.keys(ownerVehicleIndex.partialFilterExpression).length !== 1
+  )) {
+    await collection.dropIndex(ownerVehicleIndex.name);
+  }
+  await collection.createIndex(
+    { ownerId: 1, vehicleId: 1 },
+    { unique: true, partialFilterExpression: { ownerId: { $type: 'objectId' } } },
+  );
+  const guestEmailIndex = indexes.find((index) => index.name === 'guestEmailHash_1_vehicleId_1');
+  if (guestEmailIndex && (
+    !guestEmailIndex.unique
+    || guestEmailIndex.partialFilterExpression?.guestEmailHash?.$type !== 'string'
+    || Object.keys(guestEmailIndex.partialFilterExpression).length !== 1
+  )) {
+    await collection.dropIndex(guestEmailIndex.name);
+  }
+  await collection.createIndex(
+    { guestEmailHash: 1, vehicleId: 1 },
+    { unique: true, partialFilterExpression: { guestEmailHash: { $type: 'string' } } },
+  );
   const settings = mongoose.connection.collection('app_settings');
   const migration = await settings.findOne({ _id: 'vehicle-offers-removed-v1' });
   if (!migration) {
@@ -53,13 +100,35 @@ async function ensurePurchaseRequestIndexes() {
   }
 }
 
-router.post('/', requireCustomer, async (req, res) => {
+router.post('/', attachOptionalCustomer, async (req, res) => {
   const vehicleId = typeof req.body?.vehicleId === 'string' ? req.body.vehicleId.trim() : '';
+  const firstName = typeof req.body?.firstName === 'string' ? req.body.firstName.trim() : '';
+  const lastName = typeof req.body?.lastName === 'string' ? req.body.lastName.trim() : '';
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
   const phone = typeof req.body?.phone === 'string' ? req.body.phone.trim() : '';
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(vehicleId) || phone.length < 6 || phone.length > 30) {
-    return res.status(400).json({ error: 'Controlla l’auto selezionata e il numero di telefono.' });
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(vehicleId)) {
+    return res.status(400).json({ error: 'Seleziona un’auto valida.' });
+  }
+  if (firstName.length < 1 || firstName.length > 80 || lastName.length < 1 || lastName.length > 80) {
+    return res.status(400).json({ error: 'Inserisci nome e cognome validi.' });
+  }
+  if (email.length > 254 || !emailPattern.test(email)) {
+    return res.status(400).json({ error: 'Inserisci un indirizzo email valido.' });
+  }
+  if (phone.length < 6 || phone.length > 30) {
+    return res.status(400).json({ error: 'Inserisci un numero di telefono valido.' });
+  }
+  if (req.body?.termsAccepted !== true) {
+    return res.status(400).json({ error: 'Accetta i termini e le condizioni per proseguire.' });
   }
 
+  const guestEmailHash = req.user ? null : hashGuestEmail(email);
+  const duplicateFilter = req.user
+    ? { ownerId: req.user._id, vehicleId }
+    : { guestEmailHash, vehicleId };
+  const duplicateMessage = req.user
+    ? 'Hai già richiesto informazioni per questa auto.'
+    : 'Hai già inviato una richiesta per questa auto con questo indirizzo email.';
   const session = await mongoose.startSession();
   let request;
   try {
@@ -74,33 +143,40 @@ router.post('/', requireCustomer, async (req, res) => {
         throw error;
       }
 
-      const existing = await requests().findOne({ ownerId: req.user._id, vehicleId }, { session });
+      const existing = await requests().findOne(duplicateFilter, { session });
       if (existing) {
-        const error = new Error('Hai già richiesto informazioni per questa auto.');
+        const error = new Error(duplicateMessage);
         error.statusCode = 409;
         throw error;
       }
 
       const now = new Date();
       request = {
-        ownerId: req.user._id,
+        ...(req.user ? { ownerId: req.user._id } : { guestEmailHash }),
         vehicleId,
         vehicle: {
           id: vehicle.id,
           make: vehicle.make,
           model: vehicle.model,
           year: vehicle.year,
+          type: vehicle.type,
           price: vehicle.price,
+          discountPrice: vehicle.discountPrice ?? null,
+          discountEndsAt: vehicle.discountEndsAt ?? null,
           vatMode: vehicle.vatMode || 'inclusive',
           image: vehicle.image || vehicle.images?.[0] || '',
           images: vehicle.images || [vehicle.image].filter(Boolean),
           installmentPlan: vehicle.installmentPlan || null,
         },
         customer: {
-          name: req.user.name,
-          email: req.user.email,
+          name: `${firstName} ${lastName}`,
+          firstName,
+          lastName,
+          email,
           phone,
         },
+        termsAccepted: true,
+        termsAcceptedAt: now,
         status: 'pending',
         metricsRecorded: true,
         createdAt: now,
@@ -127,7 +203,7 @@ router.post('/', requireCustomer, async (req, res) => {
     if (error.statusCode === 404 || error.statusCode === 409) {
       return res.status(error.statusCode).json({ error: error.message });
     }
-    if (error.code === 11000) return res.status(409).json({ error: 'Hai già richiesto informazioni per questa auto.' });
+    if (error.code === 11000) return res.status(409).json({ error: duplicateMessage });
     console.error('Could not create vehicle purchase request:', error);
     return res.status(500).json({ error: 'Non è stato possibile inviare la richiesta di acquisto.' });
   } finally {

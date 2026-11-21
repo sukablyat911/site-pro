@@ -93,4 +93,22 @@ const connectDB = async () => {
   }
 };
 
-module.exports = connectDB;
+async function ensureIndexes(collection) {
+  // Catalog/filter indexes for vehicle queries
+  await collection.createIndex({ make: 1, model: 1 });
+  await collection.createIndex({ year: 1 });
+  await collection.createIndex({ vatMode: 1 });
+  await collection.createIndex({ bodyType: 1 });
+  await collection.createIndex({ fuel: 1 });
+  await collection.createIndex({ transmission: 1 });
+  await collection.createIndex({ price: 1 });
+  await collection.createIndex({ 'powerCv': 1 });
+  await collection.createIndex({ status: 1 });
+  await collection.createIndex({ 'features': 1 });
+  
+  // Compound index for common filter combinations
+  await collection.createIndex({ make: 1, bodyType: 1, year: 1, fuel: 1 });
+  await collection.createIndex({ vatMode: 1, bodyType: 1, transmission: 1 });
+}
+
+module.exports = { getConnectionInfo, getErrorDetails, redactCredentials, logConnectionFailure, ensureIndexes, connectDB };

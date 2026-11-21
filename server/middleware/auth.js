@@ -2,7 +2,7 @@ const crypto = require('node:crypto');
 const AuthSession = require('../models/AuthSession');
 const User = require('../models/User');
 
-const sessionCookieName = 'peluso_session';
+const sessionCookieName = '__Host-peluso_session';
 
 function hashSessionToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
@@ -47,10 +47,11 @@ async function requireAdmin(req, res, next) {
     if (!authenticated || (authenticated.user.role === 'admin' && !authenticated.session.adminVerified)) {
       return res.status(401).json({ error: 'Accedi per continuare.' });
     }
-    const { user } = authenticated;
+    const { session, user } = authenticated;
     if (user.role !== 'admin') {
       return res.status(403).json({ error: 'Non hai i permessi per gestire le auto.' });
     }
+    req.authSession = session;
     req.user = user;
     return next();
   } catch (error) {

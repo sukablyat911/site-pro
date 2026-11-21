@@ -15,7 +15,7 @@ const imageExtensions = {
   'image/webp': 'webp',
 };
 const vehicleFields = [
-  'make', 'model', 'year', 'mileageKm', 'price', 'vatMode', 'bodyType', 'type', 'color',
+  'make', 'model', 'year', 'mileageKm', 'price', 'discountPrice', 'discountEndsAt', 'vatMode', 'bodyType', 'type', 'color',
   'label', 'fuel', 'transmission', 'power', 'powerCv', 'powerKw', 'emissionsClass', 'inspectionYear', 'lastService',
   'doors', 'seats', 'description', 'installmentPlan',
   'engine', 'drivetrain', 'engineDisplacementCc', 'cylinders', 'consumptionCombined', 'consumptionUnit',
@@ -119,6 +119,20 @@ function validateVehicle(body, currentId, files) {
   const year = Number(body.year);
   const mileageKm = Number(body.mileageKm);
   const price = Number(body.price);
+  const discountPrice = body.discountPrice === '' || body.discountPrice == null
+    ? null
+    : Math.round(Number(body.discountPrice) * 100) / 100;
+  const rawDiscountEndsAt = body.discountEndsAt;
+  const hasDiscountEnd = rawDiscountEndsAt !== '' && rawDiscountEndsAt != null;
+  const isCanonicalDiscountEnd = typeof rawDiscountEndsAt === 'string'
+    && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(rawDiscountEndsAt);
+  const discountEndTime = hasDiscountEnd && isCanonicalDiscountEnd
+    ? Date.parse(rawDiscountEndsAt)
+    : NaN;
+  const discountEndsAt = Number.isFinite(discountEndTime)
+      && new Date(discountEndTime).toISOString() === rawDiscountEndsAt
+    ? rawDiscountEndsAt
+    : null;
   const doors = Number(body.doors);
   const seats = Number(body.seats);
   const savedImages = parseExistingImages(body);
@@ -177,6 +191,13 @@ function validateVehicle(body, currentId, files) {
   }
   if (!allowedTypes.has(type)) {
     return { error: 'Seleziona vendita o noleggio.' };
+  }
+  if (discountPrice !== null
+      && (type !== 'buy' || !Number.isFinite(discountPrice) || discountPrice <= 0 || discountPrice >= price || discountPrice > 100000000)) {
+    return { error: 'Il prezzo scontato deve essere positivo e inferiore al prezzo originale delle auto in vendita.' };
+  }
+  if (hasDiscountEnd && (discountEndsAt === null || discountPrice === null || type !== 'buy')) {
+    return { error: 'Imposta una data di scadenza valida solo per un’auto in vendita con prezzo scontato.' };
   }
   if (!allowedVatModes.has(vatMode)) {
     return { error: 'Seleziona una modalità IVA valida.' };
@@ -243,6 +264,8 @@ function validateVehicle(body, currentId, files) {
     year,
     mileageKm,
     price,
+    discountPrice,
+    discountEndsAt,
     vatMode,
     bodyType,
     type,
@@ -595,6 +618,7 @@ router.get('/metrics', async (_req, res) => {
 });
 
 router.get('/', async (_req, res) => {
+  res.set('Cache-Control', 'no-store');
   try {
     const vehicles = await mongoose.connection.collection('vehicles')
       .find({}, { projection: { _id: 0 } })
@@ -633,7 +657,13 @@ router.post('/', requireAdmin, receiveVehicleImages, async (req, res) => {
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    await mongoose.connection.collection('vehicles').insertOne(record);
+    const collection = mongoose.connection.collection('vehicles');
+    await collection.insertOne(record);
+    const savedVehicle = await collection.findOne({ id: vehicle.id }, { projection: { _id: 0, discountEndsAt: 1 } });
+    if (!savedVehicle || savedVehicle.discountEndsAt !== vehicle.discountEndsAt) {
+      console.error(`Discount expiration was not persisted for vehicle ${vehicle.id}.`);
+      return res.status(500).json({ error: 'Il server non ha salvato correttamente la scadenza dello sconto.' });
+    }
     return res.status(201).json({ vehicle });
   } catch (insertError) {
     await cleanupUploadedFiles(req.files);
@@ -668,7 +698,16 @@ router.put('/:id', requireAdmin, receiveVehicleImages, async (req, res) => {
       await cleanupUploadedFiles(req.files);
       return res.status(404).json({ error: 'Auto non trovata.' });
     }
-    await collection.updateOne({ id }, { $set: updates });
+    const result = await collection.updateOne({ id }, { $set: updates });
+    if (result.matchedCount !== 1) {
+      await cleanupUploadedFiles(req.files);
+      return res.status(404).json({ error: 'Auto non trovata.' });
+    }
+    const savedVehicle = await collection.findOne({ id }, { projection: { _id: 0, discountEndsAt: 1 } });
+    if (!savedVehicle || savedVehicle.discountEndsAt !== vehicle.discountEndsAt) {
+      console.error(`Discount expiration was not persisted for vehicle ${id}.`);
+      return res.status(500).json({ error: 'Il server non ha salvato correttamente la scadenza dello sconto.' });
+    }
     const retainedImages = new Set(vehicle.images);
     await deleteStoredImages((current.images || []).filter((image) => !retainedImages.has(image)));
     return res.json({ vehicle });

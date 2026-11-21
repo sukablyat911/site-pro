@@ -20,6 +20,13 @@ const authSessionSchema = new mongoose.Schema(
     pendingPinExpiresAt: {
       type: Date,
     },
+    pendingTotpSecretEncrypted: {
+      type: String,
+      select: false,
+    },
+    totpSetupExpiresAt: {
+      type: Date,
+    },
     expiresAt: {
       type: Date,
       required: true,

@@ -41,6 +41,12 @@ token issued by your email provider, not necessarily your normal account passwor
 For Proton Mail, use its SMTP submission credentials/token and provider-approved
 sender address. The API reports an error if SMTP is missing or delivery fails;
 the submitted inquiry remains stored in MongoDB and its email status is recorded.
+Visitors can request a dealership appointment from an auto detail page by choosing
+a future date and time. Requests are stored in the `dealer_visit_requests`
+collection and managed in `/admin/visits`; admins must provide a reason when
+accepting or declining, and the decision is emailed to the customer when SMTP is
+configured. Admin notification failures are shown in the admin area while the
+request remains available there.
 Vehicle listings are read from MongoDB; there is no built-in example inventory.
 The admin can add, edit, or remove listings at `/admin`. Vehicle photos uploaded
 there are stored in `server/uploads/cars/` and served by the application. Keep this
@@ -56,10 +62,10 @@ can review them, update their status, accept or reject the proposal, or send a
 counteroffer and messages in `/admin/messages`. Customers can follow each
 proposal's status and continue the private conversation from `/account`.
 Customers can also submit a price offer on an in-stock vehicle for sale, with an
-optional comment, from the single conversation on `/account/offers`. Offers,
-counteroffers, and replies appear as chronological messages; customers can accept
-or reject a counteroffer or submit a new price there. Admins manage these
-negotiations from `/admin/messages`.
+optional comment, from the `/account` price-offers section. Offers,
+counteroffers, and replies appear in a chronological negotiation history;
+customers can accept or reject a counteroffer or submit a new price there. Admins
+manage these negotiations from the dedicated `/admin/offers` workspace.
 Proposal photos are stored separately in `server/uploads/sell-submissions/` and
 served only to admins and the customer who owns the proposal. Keep this upload
 directory on persistent storage in production.
@@ -82,8 +88,9 @@ node -e "require('bcryptjs').hash(process.argv[1], 12).then(console.log)" "choos
 
 Set the generated values as `ADMIN_PASSWORD_HASH` and `ADMIN_PIN_HASH`. The PIN
 must be exactly four digits. After the password is accepted, the server creates
-a short-lived, restricted verification session; admin APIs remain unavailable
-until the PIN is verified. Three incorrect PINs trigger a 30-minute lockout
+a restricted verification session that expires after 60 seconds; the PIN prompt
+shows a countdown and admin APIs remain unavailable until the PIN is verified.
+Three incorrect PINs trigger a 30-minute lockout
 across the admin account, even across new sessions or network changes. Logging
 out revokes every server session for that account and clears the browser cookie. The admin role is
 provisioned on server startup. Never deploy with the weak example password

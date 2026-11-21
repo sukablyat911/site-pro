@@ -30,35 +30,58 @@ function getAdminPinHash() {
 async function configureAdminAccount() {
   const config = getAdminConfig();
   if (!config) {
-    await User.updateMany({ role: 'admin' }, { $set: { role: 'user' } });
-    console.warn('Admin account is disabled. Configure ADMIN_USERNAME and ADMIN_PASSWORD_HASH.');
+    const admins = await User.find({ role: 'admin' }).select('+security');
+    const fallbackPinHash = getAdminPinHash();
+    if (admins.some((admin) => !admin.security?.adminPinHash && !admin.security?.totpEnabled) && !fallbackPinHash) {
+      throw new Error('Existing admin accounts need a PIN hash or enabled TOTP. Configure ADMIN_PIN_HASH before starting the server.');
+    }
+    console.warn('No bootstrap admin is configured. Existing database admin accounts remain available.');
     return;
   }
-  if (!getAdminPinHash()) {
-    throw new Error('ADMIN_PIN_HASH is required when admin access is enabled. Configure a bcrypt hash of a four-digit PIN.');
+  let admin = await User.findOne({ username: config.username }).select('+security');
+  if (!admin) admin = await User.findOne({ email: config.email }).select('+security');
+
+  if (!admin) {
+    const legacyAdmins = await User.find({ role: 'admin', username: { $exists: false } })
+      .select('+security')
+      .limit(2);
+    if (legacyAdmins.length === 1) admin = legacyAdmins[0];
+  }
+  if (admin && admin.role !== 'admin') {
+    throw new Error('ADMIN_EMAIL or ADMIN_USERNAME already belongs to a non-admin account.');
   }
 
-  const admins = await User.find({ role: 'admin' }).select('_id').limit(2);
-  if (admins.length > 1) {
-    throw new Error('Multiple admin accounts exist; keep one before configuring the admin credentials.');
+  const configuredPinHash = getAdminPinHash();
+  if (!admin && !configuredPinHash) {
+    throw new Error('ADMIN_PIN_HASH is required to initialize the bootstrap admin account.');
   }
-  const existingUser = await User.findOne({
-    email: config.email,
-    role: { $ne: 'admin' },
-    ...(admins[0] ? { _id: { $ne: admins[0]._id } } : {}),
-  }).select('_id');
-  if (existingUser) {
-    throw new Error('ADMIN_EMAIL already belongs to a non-admin account; choose a different ADMIN_EMAIL.');
+  if (admin && !admin.security?.adminPinHash && !admin.security?.totpEnabled && !configuredPinHash) {
+    throw new Error('The bootstrap admin has no configured PIN or TOTP. Configure ADMIN_PIN_HASH before starting the server.');
+  }
+  const updates = {
+    name: config.username,
+    username: config.username,
+    role: 'admin',
+  };
+  if (!admin) updates.email = config.email;
+  if (configuredPinHash && !admin?.security?.adminPinHash) {
+    updates['security.adminPinHash'] = configuredPinHash;
+  }
+  if (admin) {
+    await User.updateOne({ _id: admin._id }, { $set: updates }, { runValidators: true });
+  } else {
+    const existingUser = await User.findOne({ email: config.email }).select('_id');
+    if (existingUser) {
+      throw new Error('ADMIN_EMAIL already belongs to another account; choose a different ADMIN_EMAIL.');
+    }
+    await User.create({
+      ...updates,
+      email: config.email,
+      passwordHash: config.passwordHash,
+      security: { adminPinHash: configuredPinHash },
+    });
   }
 
-  await User.updateOne(
-    admins[0] ? { _id: admins[0]._id } : { email: config.email },
-    {
-      $set: { name: config.username, email: config.email, passwordHash: config.passwordHash, role: 'admin' },
-      $setOnInsert: { createdAt: new Date() },
-    },
-    { upsert: true, runValidators: true },
-  );
   console.log(`Admin account configured for username "${config.username}".`);
 }
 
