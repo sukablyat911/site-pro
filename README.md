@@ -89,7 +89,8 @@ node -e "require('bcryptjs').hash(process.argv[1], 12).then(console.log)" "choos
 Set the generated values as `ADMIN_PASSWORD_HASH` and `ADMIN_PIN_HASH`. The PIN
 must be exactly four digits. After the password is accepted, the server creates
 a restricted verification session that expires after 60 seconds; the PIN prompt
-shows a countdown and admin APIs remain unavailable until the PIN is verified.
+opens on a dedicated page, shows a countdown and leaves admin APIs unavailable
+until the PIN is verified.
 Three incorrect PINs trigger a 30-minute lockout
 across the admin account, even across new sessions or network changes. Logging
 out revokes every server session for that account and clears the browser cookie. The admin role is

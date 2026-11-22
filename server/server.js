@@ -27,10 +27,11 @@ const { configureAdminAccount } = require('./config/admin');
 const AdminSecurityEvent = require('./models/AdminSecurityEvent');
 const AdminPinAttempt = require('./models/AdminPinAttempt');
 const AdminSecurityAttempt = require('./models/AdminSecurityAttempt');
+const AdminSecuritySettings = require('./models/AdminSecuritySettings');
 const AdminTrafficCounter = require('./models/AdminTrafficCounter');
 const AdminInvitation = require('./models/AdminInvitation');
 const User = require('./models/User');
-const { adminTrafficGuard } = require('./middleware/adminTrafficGuard');
+const { adminTrafficGuard, invalidateSecuritySettingsCache } = require('./middleware/adminTrafficGuard');
 const { siteAvailabilityGuard } = require('./middleware/siteAvailabilityGuard');
 
 const app = express();
@@ -59,6 +60,38 @@ if (clientOrigin) {
   app.use(cors({ origin: clientOrigin, credentials: true }));
 }
 app.use(adminTrafficGuard);
+app.post('/api/admin/security/emergency-reset', async (req, res) => {
+  if (process.env.NODE_ENV === 'production') return res.status(404).json({ error: 'Not Found' });
+  const rawIp = typeof req.ip === 'string' ? req.ip.toLowerCase() : '';
+  const clientIp = rawIp.startsWith('::ffff:') ? rawIp.slice(7) : rawIp;
+  if (clientIp !== '127.0.0.1' && clientIp !== '::1') {
+    return res.status(403).json({ error: 'Reset disponibile solo dalla sessione locale.' });
+  }
+  try {
+    const settings = await AdminSecuritySettings.findById('global');
+    if (settings) {
+      settings.trafficLimitsEnabled = false;
+      settings.ddosProtectionEnabled = false;
+      settings.ipRules = (settings.ipRules || []).filter((rule) => (
+        rule.address !== '127.0.0.1' && rule.address !== '::1'
+      ));
+      await settings.save();
+      invalidateSecuritySettingsCache();
+    }
+    const day = new Date().toISOString().slice(0, 10);
+    const deletedCounters = await AdminTrafficCounter.deleteMany({ day });
+    return res.json({
+      reset: true,
+      trafficLimitsEnabled: false,
+      ddosProtectionEnabled: false,
+      deletedCounters: deletedCounters.deletedCount,
+      day,
+    });
+  } catch (error) {
+    console.error('Could not reset local traffic protection:', error);
+    return res.status(500).json({ error: 'Non è stato possibile ripristinare i limiti.' });
+  }
+});
 app.use(express.json({ limit: '20kb' }));
 app.use(siteAvailabilityGuard);
 app.use('/api/site', siteRoutes);
@@ -131,6 +164,20 @@ async function startServer() {
   await ensureVisitRequestIndexes();
   await ensureSalesIndexes();
   await configureAdminAccount();
+  if (process.env.NODE_ENV !== 'production') {
+    const settings = await AdminSecuritySettings.findById('global');
+    if (settings) {
+      settings.trafficLimitsEnabled = false;
+      settings.ddosProtectionEnabled = false;
+      settings.ipRules = (settings.ipRules || []).filter((rule) => (
+        rule.address !== '127.0.0.1' && rule.address !== '::1'
+      ));
+      await settings.save();
+      invalidateSecuritySettingsCache();
+    }
+    const day = new Date().toISOString().slice(0, 10);
+    await AdminTrafficCounter.deleteMany({ day });
+  }
   if (!isContactEmailConfigured()) {
     console.warn('Contact email is disabled. Configure SMTP_HOST, SMTP_USER, and SMTP_PASS to deliver contact form emails.');
   }

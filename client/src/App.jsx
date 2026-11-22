@@ -1,18 +1,23 @@
 import { Children, isValidElement, lazy, memo, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { MotionConfig, motion, useReducedMotion } from 'motion/react';
+import { createPortal } from 'react-dom';
+import { MotionConfig, animate, motion, useReducedMotion } from 'motion/react';
 import {
   Activity,
+  ArrowLeft,
   ArrowRight,
+  ArrowUpRight,
   BadgeEuro,
   Bell,
   CalendarDays,
   CarFront,
   ChartNoAxesCombined,
   Check,
+  Circle,
   ClipboardList,
   Clock3,
   CircleAlert,
   Copy,
+  CreditCard,
   Download,
   Eye,
   Fingerprint,
@@ -21,22 +26,28 @@ import {
   Info,
   KeyRound,
   ListFilter,
+  LockKeyhole,
   LogOut,
+  Mail,
   Maximize2,
   Minimize2,
   MapPin,
   Pencil,
   Plus,
+  Quote,
   RefreshCw,
   Save,
   Search,
   ShieldCheck,
   Smartphone,
+  Star,
   Tag,
   Trash2,
   TriangleAlert,
+  Truck,
   TrendingUp,
   UsersRound,
+  UserRound,
   Wrench,
   WifiOff,
   X,
@@ -855,6 +866,8 @@ const SelectField = ({ name, value, defaultValue, onChange, children, disabled, 
   const id = useId();
   const rootRef = useRef(null);
   const optionRefs = useRef([]);
+  const popoverRef = useRef(null);
+  const [popoverStyle, setPopoverStyle] = useState(null);
   const controlled = value !== undefined;
   const [selectedValue, setSelectedValue] = useState(String(value ?? defaultValue ?? ''));
   const [open, setOpen] = useState(false);
@@ -874,10 +887,64 @@ const SelectField = ({ name, value, defaultValue, onChange, children, disabled, 
   useEffect(() => {
     if (!open) return undefined;
     function closeOnOutsideClick(event) {
-      if (!rootRef.current?.contains(event.target)) setOpen(false);
+      if (!rootRef.current?.contains(event.target) && !popoverRef.current?.contains(event.target)) setOpen(false);
     }
     document.addEventListener('pointerdown', closeOnOutsideClick);
     return () => document.removeEventListener('pointerdown', closeOnOutsideClick);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      setPopoverStyle(null);
+      return undefined;
+    }
+    if (!rootRef.current?.closest('.advanced-filters')) {
+      setPopoverStyle(null);
+      return undefined;
+    }
+
+    let frame = 0;
+    function positionCatalogPopover() {
+      if (!rootRef.current || !popoverRef.current) return;
+      const trigger = rootRef.current.querySelector('.custom-select-trigger');
+      if (!trigger) return;
+      const triggerRect = trigger.getBoundingClientRect();
+      const popoverRect = popoverRef.current.getBoundingClientRect();
+      const width = Math.min(
+        Math.max(triggerRect.width, 220),
+        Math.max(240, window.innerWidth - 24),
+      );
+      const height = popoverRect.height;
+      const margin = 8;
+      const below = window.innerHeight - triggerRect.bottom - margin;
+      const above = triggerRect.top - margin;
+      let left = triggerRect.left;
+      left = Math.max(margin, Math.min(left, window.innerWidth - width - margin));
+      let top = triggerRect.bottom + 6;
+      if ((height > below || below < 220) && above > below) {
+        top = Math.max(margin, triggerRect.top - height - 6);
+      }
+      top = Math.max(margin, Math.min(top, window.innerHeight - height - margin));
+
+      setPopoverStyle({
+        position: 'fixed',
+        zIndex: 80,
+        top,
+        left,
+        right: 'auto',
+        width,
+        maxHeight: Math.min(320, window.innerHeight - 24),
+      });
+    }
+
+    frame = window.requestAnimationFrame(positionCatalogPopover);
+    window.addEventListener('resize', positionCatalogPopover);
+    window.addEventListener('scroll', positionCatalogPopover, true);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener('resize', positionCatalogPopover);
+      window.removeEventListener('scroll', positionCatalogPopover, true);
+    };
   }, [open]);
 
   useEffect(() => {
@@ -942,8 +1009,45 @@ const SelectField = ({ name, value, defaultValue, onChange, children, disabled, 
         <span className={!selectedOption ? 'custom-select-placeholder' : ''}>{selectedOption?.label ?? options[0]?.label ?? 'Seleziona un’opzione'}</span>
         <svg className="custom-select-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m3 6 5 5 5-5" /></svg>
       </button>
-      {open && (
-        <div className="custom-select-popover" id={`${id}-listbox`} role="listbox" aria-labelledby={id}>
+      {open && popoverStyle && (
+        createPortal(
+          <div
+            ref={popoverRef}
+            className="custom-select-popover"
+            id={`${id}-listbox`}
+            role="listbox"
+            aria-labelledby={id}
+            style={popoverStyle}
+          >
+            {options.map((option, index) => (
+              <button
+                key={`${option.value}-${index}`}
+                ref={(element) => { optionRefs.current[index] = element; }}
+                className={`custom-select-option${option.value === selectedValue ? ' is-selected' : ''}`}
+                type="button"
+                role="option"
+                aria-selected={option.value === selectedValue}
+                aria-disabled={option.disabled || undefined}
+                disabled={option.disabled}
+                onClick={() => chooseOption(option)}
+                onKeyDown={(event) => handleOptionKeyDown(event, index)}
+              >
+                <span>{option.label}</span>
+                {option.value === selectedValue && <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 8 3.2 3.2L13 4.5" /></svg>}
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )
+      )}
+      {open && !popoverStyle && (
+        <div
+          ref={popoverRef}
+          className="custom-select-popover"
+          id={`${id}-listbox`}
+          role="listbox"
+          aria-labelledby={id}
+        >
           {options.map((option, index) => (
             <button
               key={`${option.value}-${index}`}
@@ -5192,6 +5296,11 @@ function SiteAvailabilityPage({ mode, message, logoUrl, businessName, loading = 
 function App() {
   const initialCatalogFilters = useMemo(() => readCatalogFilters(), []);
   const prefersReducedMotion = useReducedMotion();
+  const servicesRef = useCallback((element) => {
+    if (element && window.location.hash === '#services') {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []);
   const [vehicles, setVehicles] = useState([]);
   const [cookieConsent, setCookieConsent] = useState(readCookieConsent);
   const [cookieSettingsOpen, setCookieSettingsOpen] = useState(false);
@@ -5219,6 +5328,7 @@ function App() {
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [logoutNotice, setLogoutNotice] = useState('');
   const authRequestIdRef = useRef(0);
+  const adminPinDestinationRef = useRef('/admin');
   useEffect(() => {
     setAuthFieldErrors({});
     setAuthTouchedFields({});
@@ -5253,8 +5363,12 @@ function App() {
   const cartCloseRef = useRef(null);
   const cartDrawerRef = useRef(null);
   const [filter, setFilter] = useState(initialCatalogFilters.filter);
+  const [catalogFiltersOpen, setCatalogFiltersOpen] = useState(false);
   const [catalogPage, setCatalogPage] = useState(1);
   const [search, setSearch] = useState(initialCatalogFilters.search);
+  const [catalogSearchPlaceholder, setCatalogSearchPlaceholder] = useState('Cerca marca, modello o caratteristiche');
+  const catalogAdvancedFiltersRef = useRef(null);
+  const catalogFilterDragRef = useRef(null);
   const [makeFilter, setMakeFilter] = useState(initialCatalogFilters.makeFilter);
   const [bodyTypeFilter, setBodyTypeFilter] = useState(initialCatalogFilters.bodyTypeFilter);
   const [yearFilter, setYearFilter] = useState(initialCatalogFilters.yearFilter);
@@ -5264,6 +5378,108 @@ function App() {
   const [maxPrice, setMaxPrice] = useState(initialCatalogFilters.maxPrice);
   const [maxPower, setMaxPower] = useState(initialCatalogFilters.maxPower);
   const [sortBy, setSortBy] = useState(initialCatalogFilters.sortBy);
+
+  useEffect(() => {
+    if (search || prefersReducedMotion) {
+      setCatalogSearchPlaceholder(search ? '' : 'Cerca marca, modello o caratteristiche');
+      return undefined;
+    }
+
+    const phrases = [
+      'Cerca marca, modello o caratteristiche',
+      'Cerca una marca come Audi',
+      'Cerca per tipo di carrozzeria',
+      'Cerca per anno o potenza',
+    ];
+    let phraseIndex = 0;
+    let characterIndex = 0;
+    let deleting = false;
+    let timeoutId;
+
+    function updatePlaceholder() {
+      const phrase = phrases[phraseIndex];
+      if (!deleting) {
+        characterIndex += 1;
+        setCatalogSearchPlaceholder(phrase.slice(0, characterIndex));
+        if (characterIndex >= phrase.length) {
+          deleting = true;
+          timeoutId = window.setTimeout(updatePlaceholder, 1600);
+          return;
+        }
+      } else {
+        characterIndex -= 1;
+        setCatalogSearchPlaceholder(phrase.slice(0, characterIndex));
+        if (characterIndex <= 0) {
+          deleting = false;
+          phraseIndex = (phraseIndex + 1) % phrases.length;
+          timeoutId = window.setTimeout(updatePlaceholder, 260);
+          return;
+        }
+      }
+      timeoutId = window.setTimeout(updatePlaceholder, deleting ? 52 : 76);
+    }
+
+    timeoutId = window.setTimeout(updatePlaceholder, 350);
+    return () => window.clearTimeout(timeoutId);
+  }, [search, prefersReducedMotion]);
+
+  useEffect(() => {
+    if (!catalogFiltersOpen || !catalogAdvancedFiltersRef.current) return;
+    catalogAdvancedFiltersRef.current.style.transform = '';
+    catalogAdvancedFiltersRef.current.style.transition = '';
+  }, [catalogFiltersOpen]);
+
+  function startCatalogFilterDrag(event) {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    catalogFilterDragRef.current = {
+      pointerId: event.pointerId,
+      startY: event.clientY,
+      offsetY: 0,
+      startedAt: performance.now(),
+      frameId: 0,
+    };
+  }
+
+  function moveCatalogFilterDrag(event) {
+    const drag = catalogFilterDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId || !catalogAdvancedFiltersRef.current) return;
+    if (drag.frameId) window.cancelAnimationFrame(drag.frameId);
+    const offsetY = Math.max(0, event.clientY - drag.startY);
+    drag.offsetY = offsetY;
+    if (drag.frameId) window.cancelAnimationFrame(drag.frameId);
+    drag.frameId = window.requestAnimationFrame(() => {
+      if (!catalogAdvancedFiltersRef.current) return;
+      catalogAdvancedFiltersRef.current.style.transition = 'none';
+      catalogAdvancedFiltersRef.current.style.transform = `translate3d(-50%, ${offsetY}px, 0)`;
+    });
+  }
+
+  function finishCatalogFilterDrag(event) {
+    const drag = catalogFilterDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId || !catalogAdvancedFiltersRef.current) return;
+    catalogFilterDragRef.current = null;
+    const elapsed = Math.max(1, performance.now() - drag.startedAt);
+    const velocity = drag.offsetY / elapsed;
+    const panel = catalogAdvancedFiltersRef.current;
+    if (drag.offsetY > 48 || velocity > 0.38) {
+      panel.style.transition = 'transform .44s cubic-bezier(.16, 1, .3, 1), opacity .32s ease';
+      panel.style.transform = 'translate3d(-50%, 110vh, 0)';
+      panel.style.opacity = '0';
+      window.setTimeout(() => {
+        setCatalogFiltersOpen(false);
+        panel.style.transform = '';
+        panel.style.transition = '';
+        panel.style.opacity = '';
+      }, 440);
+    } else {
+      panel.style.transition = 'transform .32s cubic-bezier(.22, .82, .22, 1)';
+      panel.style.transform = 'translate3d(-50%, 0, 0)';
+      window.setTimeout(() => {
+        panel.style.transition = '';
+      }, 320);
+    }
+  }
   const [contactMessage, setContactMessage] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [contactStatus, setContactStatus] = useState('');
@@ -5445,6 +5661,7 @@ function App() {
   const adminVehicleFormRef = useRef(null);
   const soldCarsTrackRef = useRef(null);
   const customerReviewsTrackRef = useRef(null);
+  const carouselAnimationsRef = useRef(new Map());
   const [focusedSoldCarIndex, setFocusedSoldCarIndex] = useState(0);
   const [focusedReviewIndex, setFocusedReviewIndex] = useState(0);
   const [adminImageFiles, setAdminImageFiles] = useState([]);
@@ -5684,6 +5901,7 @@ function App() {
   const isHomePage = normalizedPathname === '/';
   const isCatalogPage = normalizedPathname === '/catalogo';
   const isSellPage = normalizedPathname === '/vendi-auto';
+  const isPublicMainHeader = isHomePage || isSellPage || normalizedPathname.startsWith('/auto/');
   const isContactPage = normalizedPathname === '/contatti';
   const isAdminDashboardPage = normalizedPathname === '/admin' || isAdminEntryPage;
   const isAdminPage = normalizedPathname === '/admin/inventory';
@@ -5734,12 +5952,12 @@ function App() {
   const mapsSearchUrl = `https://maps.google.com/?q=${encodeURIComponent(publicAddress)}`;
   const mapsEmbedUrl = `https://maps.google.com/maps?q=${encodeURIComponent(publicAddress)}&t=&z=16&ie=UTF8&iwloc=&output=embed`;
   useEffect(() => {
-    document.title = `${businessName} — La tua prossima auto`;
+    document.title = adminPinRequired ? `Verifica amministratore — ${businessName}` : `${businessName} — La tua prossima auto`;
     const description = document.querySelector('meta[name="description"]');
     if (description) {
       description.setAttribute('content', `Trova la tua prossima auto con ${businessName}. Scopri auto selezionate da acquistare, noleggiare o vendere.`);
     }
-  }, [businessName]);
+  }, [adminPinRequired, businessName]);
   const siteAnnouncement = siteSettings.announcement
     && new Date(siteSettings.announcement.expiresAt).getTime() > siteClockNow
     ? siteSettings.announcement
@@ -6326,16 +6544,24 @@ function App() {
   }, [customerReviewsReloadKey]);
 
   useEffect(() => {
+    const animations = carouselAnimationsRef.current;
+    return () => {
+      animations.forEach(({ controls }) => controls.stop());
+      animations.clear();
+    };
+  }, []);
+
+  useEffect(() => {
     if (salesLoading || sales.length < 2) return;
     const frame = window.requestAnimationFrame(() => updateCarouselFocus(soldCarsTrackRef, setFocusedSoldCarIndex));
     return () => window.cancelAnimationFrame(frame);
-  }, [salesLoading, sales.length]);
+  }, [salesLoading, sales.length, isHomePage]);
 
   useEffect(() => {
     if (customerReviewsLoading || customerReviews.length < 2) return;
     const frame = window.requestAnimationFrame(() => updateCarouselFocus(customerReviewsTrackRef, setFocusedReviewIndex));
     return () => window.cancelAnimationFrame(frame);
-  }, [customerReviewsLoading, customerReviews.length]);
+  }, [customerReviewsLoading, customerReviews.length, isHomePage]);
 
   useEffect(() => {
     if (user?.role !== 'user') {
@@ -6432,12 +6658,15 @@ function App() {
 
   useEffect(() => {
     const handlePopState = () => {
+      if (adminPinRequired && window.location.pathname !== '/admin/verify') {
+        window.history.replaceState({ adminPinReturnPath: adminPinDestinationRef.current }, '', '/admin/verify');
+      }
       setPathname(window.location.pathname);
       window.scrollTo({ top: 0 });
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  }, [adminPinRequired]);
 
   useEffect(() => {
     if (!authReady) return undefined;
@@ -7000,9 +7229,11 @@ function App() {
 
   function navigateAfterAuthentication(signedInUser) {
     const destination = signedInUser.role === 'admin'
-      ? window.location.pathname.startsWith('/admin') ? window.location.pathname : '/admin'
+      ? window.location.pathname === '/admin/verify'
+        ? adminPinDestinationRef.current
+        : window.location.pathname.startsWith('/admin') ? window.location.pathname : '/admin'
       : '/account';
-    navigateToPath(destination);
+    navigateToPath(destination, window.location.pathname === '/admin/verify');
   }
 
   function navigateToHome(section = 'home') {
@@ -8030,26 +8261,66 @@ function App() {
     setSortBy('recommended');
   }
 
+  function stopCarouselAnimation(track) {
+    const running = carouselAnimationsRef.current.get(track);
+    if (!running) return;
+    running.controls.stop();
+    carouselAnimationsRef.current.delete(track);
+    delete track.dataset.animating;
+  }
+
+  function getCarouselOffsets(track) {
+    const trackStart = track.getBoundingClientRect().left + track.clientLeft
+      + parseFloat(getComputedStyle(track).scrollPaddingLeft);
+    return Array.from(track.children, (card) => card.getBoundingClientRect().left - trackStart);
+  }
+
   function scrollCarousel(trackRef, direction) {
     const track = trackRef.current;
-    const firstCard = track?.firstElementChild;
-    if (!track || !firstCard) return;
-    const gap = Number.parseFloat(window.getComputedStyle(track).columnGap) || 0;
-    track.scrollBy({
-      left: direction * (firstCard.getBoundingClientRect().width + gap),
-      behavior: 'smooth',
+    const cards = track ? Array.from(track.children) : [];
+    if (!track || cards.length === 0) return;
+
+    const running = carouselAnimationsRef.current.get(track);
+    const offsets = getCarouselOffsets(track);
+    const currentIndex = running
+      ? running.targetIndex
+      : offsets.reduce((best, offset, index) => (Math.abs(offset) < Math.abs(offsets[best]) ? index : best), 0);
+    const targetIndex = Math.min(cards.length - 1, Math.max(0, currentIndex + direction));
+    const maxScroll = track.scrollWidth - track.clientWidth;
+    const target = Math.min(maxScroll, Math.max(0, track.scrollLeft + offsets[targetIndex]));
+
+    stopCarouselAnimation(track);
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      track.scrollTo({ left: target, behavior: 'instant' });
+      return;
+    }
+
+    // Scroll snapping is paused while the animation runs so the two do not fight each other.
+    track.dataset.animating = 'true';
+    const finish = () => {
+      carouselAnimationsRef.current.delete(track);
+      delete track.dataset.animating;
+    };
+    const controls = animate(track.scrollLeft, target, {
+      duration: 0.85,
+      ease: [0.22, 1, 0.36, 1],
+      onUpdate: (value) => { track.scrollLeft = value; },
+      onComplete: finish,
     });
+    carouselAnimationsRef.current.set(track, { controls, targetIndex });
+  }
+
+  function interruptCarouselAnimation(event) {
+    stopCarouselAnimation(event.currentTarget);
   }
 
   function updateCarouselFocus(trackRef, setFocusedIndex) {
     const track = trackRef.current;
     if (!track) return;
-    const trackCenter = track.getBoundingClientRect().left + track.clientWidth / 2;
     let closestIndex = 0;
     let closestDistance = Number.POSITIVE_INFINITY;
-    Array.from(track.children).forEach((card, index) => {
-      const cardCenter = card.getBoundingClientRect().left + card.getBoundingClientRect().width / 2;
-      const distance = Math.abs(trackCenter - cardCenter);
+    getCarouselOffsets(track).forEach((offset, index) => {
+      const distance = Math.abs(offset);
       if (distance < closestDistance) {
         closestDistance = distance;
         closestIndex = index;
@@ -8059,6 +8330,19 @@ function App() {
   }
 
   function startAdminPinChallenge(expiresInMs, requiresTotp = false) {
+    const currentPath = window.location.pathname;
+    const returnPath = currentPath === '/admin/verify'
+      ? window.history.state?.adminPinReturnPath
+      : currentPath;
+    adminPinDestinationRef.current = typeof returnPath === 'string'
+      && /^\/admin(?:\/|$)/.test(returnPath)
+      && returnPath !== '/admin/verify'
+      ? returnPath : '/admin';
+    if (currentPath !== '/admin/verify') {
+      window.history.replaceState({ adminPinReturnPath: adminPinDestinationRef.current }, '', '/admin/verify');
+      setPathname('/admin/verify');
+      window.scrollTo({ top: 0 });
+    }
     const suppliedRemainingMs = Number(expiresInMs);
     const remainingMs = Number.isFinite(suppliedRemainingMs)
       ? Math.min(ADMIN_PIN_CHALLENGE_LIFETIME_MS, Math.max(0, suppliedRemainingMs))
@@ -8264,34 +8548,35 @@ function App() {
         <div className="vehicle-sale-process-heading">
           <p className="eyebrow">VUOI VENDERE LA TUA AUTO?</p>
           <h1 id="vehicle-sale-process-title">Tre passi,<br /><em>senza complicazioni.</em></h1>
-          <p>Proponi la tua auto: al ritiro, se concordato, pensiamo noi.</p>
+          <p>La valutazione della tua auto è gratuita e viene effettuata in meno di 24 ore. Al ritiro, se concordato, pensiamo noi.</p>
         </div>
         <ol className="vehicle-sale-steps">
           <li className="vehicle-sale-step">
+            <span className="vehicle-sale-step-icon" aria-hidden="true"><ClipboardList /></span>
             <span className="vehicle-sale-step-number">01</span>
             <div><h3>Proponi</h3><p>Inviaci i dati e le foto dell’auto.</p></div>
-            <span className="vehicle-sale-connector" aria-hidden="true">→</span>
           </li>
           <li className="vehicle-sale-step">
+            <span className="vehicle-sale-step-icon" aria-hidden="true"><Search /></span>
             <span className="vehicle-sale-step-number">02</span>
             <div><h3>Valutiamo</h3><p>La esaminiamo e ti ricontattiamo.</p></div>
-            <span className="vehicle-sale-connector" aria-hidden="true">→</span>
           </li>
           <li className="vehicle-sale-step">
+            <span className="vehicle-sale-step-icon" aria-hidden="true"><Truck /></span>
             <span className="vehicle-sale-step-number">03</span>
             <div><h3>La ritiriamo</h3><p>Se troviamo l’accordo, concordiamo il ritiro.</p></div>
           </li>
         </ol>
         <div className="vehicle-sale-process-footer">
           <p><SiteIcon name="info" /> Possiamo concordare il ritiro dell’auto che vendi o la consegna di quella acquistata: zona, tempi, disponibilità ed eventuali costi dipendono dal veicolo.</p>
-          <button type="button" onClick={() => goToInventory('buy')}>Scopri le auto in vendita <span aria-hidden="true">↗</span></button>
+          <button type="button" onClick={() => goToInventory('buy')}>Scopri le auto in vendita <ArrowUpRight aria-hidden="true" /></button>
         </div>
       </section>
       <section className="sell-section section-wrap" id="sell">
         <div className="sell-section-heading">
           <p className="eyebrow">ACQUISTIAMO AUTO USATE</p>
           <h2>Valutiamo la tua auto<br />con la <em>giusta attenzione.</em></h2>
-          <p>Compila i dati e aggiungi le foto per richiedere una valutazione. La proposta resta riservata al concessionario, che ti ricontatterà per discuterne.</p>
+          <p>Compila i dati e aggiungi le foto per richiedere una valutazione gratuita in meno di 24 ore. La proposta resta riservata al concessionario, che ti ricontatterà per discuterne.</p>
         </div>
         <form className="sell-form" id="sell-form" key={sellFormKey} onSubmit={handleSellFormSubmit}>
           <div className="sell-form-heading">
@@ -8352,7 +8637,7 @@ function App() {
           <div className="sell-form-submit">
             <p>Inviando la proposta, i tuoi dati saranno usati per ricontattarti in merito alla vendita.</p>
             <button className="button button-accent" type="submit" disabled={sellFormBusy}>
-              {sellFormBusy ? 'Invio in corso…' : 'Invia la proposta'} <span aria-hidden="true">↗</span>
+              {sellFormBusy ? 'Invio in corso…' : 'Invia la proposta'} <ArrowUpRight aria-hidden="true" />
             </button>
           </div>
         </form>
@@ -8537,11 +8822,12 @@ function App() {
   return (
     <RouteStyleBoundary pathname={pathname}>
     <div
-      className={`site-shell${isAdminArea && !isAdminRouteBlocked && !isNotFoundPage ? ' admin-site-shell' : ''}${isAdminArea && !isAdminRouteBlocked && !isNotFoundPage && user?.role === 'admin' && !adminPinRequired ? ' admin-authenticated-shell' : ''}${visibleSiteAnnouncement && !isAdminArea ? ' has-site-announcement' : ''}`}
+      className={`site-shell${isCatalogPage ? ' catalog-page-shell' : ''}${normalizedPathname.startsWith('/auto/') ? ' vehicle-detail-page-shell' : ''}${isAdminArea && !isAdminRouteBlocked && !isNotFoundPage ? ' admin-site-shell' : ''}${isAdminArea && !isAdminRouteBlocked && !isNotFoundPage && user?.role === 'admin' && !adminPinRequired ? ' admin-authenticated-shell' : ''}${visibleSiteAnnouncement && !isAdminArea ? ' has-site-announcement' : ''}`}
       data-theme="public"
-      data-home-theme={isHomePage && !isSiteUnavailable && !isSiteSettingsLoading ? 'monochrome' : undefined}
+      data-home-theme={(isHomePage || isSellPage || isAccountPage || isCatalogPage) && !isSiteUnavailable && !isSiteSettingsLoading ? 'monochrome' : undefined}
       style={visibleSiteAnnouncement && !isAdminArea ? { '--site-announcement-height': '44px' } : undefined}
     >
+      {!adminPinRequired && <>
       {!isNotFoundPage && !isAdminArea && !isSiteUnavailable && !isSiteSettingsLoading && cookieConsent && !cookieSettingsOpen && (
         <button className={`cookie-settings-trigger${adminPinRequired ? ' is-auth-suppressed' : ''}`} type="button" onClick={openCookieSettings}>
           Preferenze cookie
@@ -8633,7 +8919,7 @@ function App() {
       {!isNotFoundPage && !isAdminRouteBlocked && !isSiteUnavailable && !isSiteSettingsLoading
         && !isAdminEntryPending && !isAdminEntryCheckError
         && (!isAdminEntryPage || user?.role === 'admin')
-        && <header className={`site-header${isAdminArea ? ' admin-site-header' : ''}${visibleSiteAnnouncement && !isAdminArea ? ' has-site-announcement' : ''}`}>
+        && <header className={`site-header${isAdminArea ? ' admin-site-header' : ''}${isPublicMainHeader ? ' public-main-header' : ''}${visibleSiteAnnouncement && !isAdminArea ? ' has-site-announcement' : ''}`}>
         {isAdminArea ? (
           <AdminConsoleHeader
             searchTerm={adminSearchTerm}
@@ -8650,14 +8936,94 @@ function App() {
           />
         ) : (
           <>
-        <a
-          className="brand brand-main"
-          href="/"
-          aria-label={`${businessName}, pagina iniziale`}
-          onClick={(event) => { event.preventDefault(); navigateToHome(); }}
-        >
-          <img className="brand-logo" src={siteSettings.logoUrl || DEFAULT_SITE_SETTINGS.logoUrl} alt={businessName} />
-        </a>
+        {isPublicMainHeader ? (
+          <>
+            <a className="public-header-brand" href="/" aria-label={`${businessName}, pagina iniziale`} onClick={(event) => { event.preventDefault(); navigateToHome(); }}>
+              <img src={siteSettings.logoUrl || DEFAULT_SITE_SETTINGS.logoUrl} alt={businessName} />
+            </a>
+            {normalizedPathname.startsWith('/auto/') && (
+              <button className="public-header-catalog" type="button" onClick={() => navigateToPath('/catalogo')}>
+                <ArrowLeft size={17} aria-hidden="true" />
+                <span>Catalogo</span>
+              </button>
+            )}
+            <nav className="public-header-nav" aria-label="Navigazione principale">
+              {!normalizedPathname.startsWith('/auto/') && <a href="/catalogo" onClick={(event) => { event.preventDefault(); goToInventory('all'); }}>Auto disponibili</a>}
+              <a href="/vendi-auto" aria-current={isSellPage ? 'page' : undefined} onClick={(event) => { event.preventDefault(); navigateToPath('/vendi-auto'); }}>Vendi auto</a>
+              <a href="/#about" onClick={(event) => { event.preventDefault(); navigateToHome('about'); }}>Chi siamo</a>
+              <a href="/contatti" onClick={(event) => { event.preventDefault(); navigateToPath('/contatti'); }}>Contatti</a>
+            </nav>
+            <div className="public-header-actions">
+              {user?.role === 'user' && (
+                <button ref={cartToggleRef} className="public-header-selection" type="button" aria-label={`Apri la selezione auto, ${selectedVehicles.length} veicoli`} onClick={openCart}>
+                  <CartIcon />
+                  <span className="public-header-action-label">Selezione</span>
+                  <span className="public-header-count">{selectedVehicles.length}</span>
+                </button>
+              )}
+              <button
+                className="public-header-account"
+                type="button"
+                aria-label={user?.role === 'admin' ? 'Apri la dashboard amministratore' : user ? 'Apri la tua area personale' : 'Accedi al tuo account'}
+                onClick={() => {
+                  if (user?.role === 'admin') navigateToPath('/admin');
+                  else if (user) navigateToPath('/account');
+                  else { setAuthError(''); setAuthMode('login'); }
+                }}
+              >
+                <UserRound size={19} aria-hidden="true" />
+                <span className="public-header-action-label">{user?.role === 'admin' ? 'Admin' : user ? 'Account' : 'Accedi'}</span>
+              </button>
+              <button
+                className="public-header-menu"
+                ref={menuToggleRef}
+                type="button"
+                aria-label="Apri il menu di navigazione"
+                aria-expanded={menuOpen}
+                aria-controls="site-menu"
+                onClick={() => setMenuOpen(true)}
+              >
+                <span className="public-header-menu-icon" aria-hidden="true"><i /><i /></span>
+                <span className="public-header-action-label">Menu</span>
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+        {isCatalogPage && (
+          <button
+            className="catalog-header-back"
+            type="button"
+            aria-label="Torna alla home"
+            onClick={() => navigateToHome()}
+          >
+            <ArrowLeft size={20} aria-hidden="true" />
+          </button>
+        )}
+        {isCatalogPage && (
+          <div className="catalog-header-tools" role="search">
+            <label className="catalog-header-search">
+              <span className="visually-hidden">Cerca marca, modello o caratteristiche</span>
+              <input
+                type="search"
+                placeholder={search ? '' : catalogSearchPlaceholder || 'Cerca un’auto'}
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              <span className="catalog-header-search-icon" aria-hidden="true"><SiteIcon name="search" /></span>
+            </label>
+            <button
+              className="catalog-header-filter"
+              type="button"
+              aria-label={catalogFiltersOpen ? 'Chiudi i filtri del catalogo' : 'Apri i filtri del catalogo'}
+              aria-expanded={catalogFiltersOpen}
+              aria-controls="catalog-advanced-filters"
+              onClick={() => setCatalogFiltersOpen((open) => !open)}
+            >
+              <ListFilter size={16} aria-hidden="true" />
+            </button>
+          </div>
+        )}
         {!activeVehicle && !isUnknownVehiclePage && !isAdminArea && !isAccountPage && (
           <nav className="header-nav" aria-label="Navigazione principale">
             <button type="button" onClick={() => goToInventory('all')}>Auto disponibili</button>
@@ -8668,11 +9034,12 @@ function App() {
         <div className="header-actions">
           {user?.role === 'admin' ? (
             <button className="admin-header-link header-glossy-accent" type="button" onClick={() => navigateToPath('/admin')} aria-label="Apri la dashboard amministratore">
-              Amministratore <span aria-hidden="true">→</span>
+              {isCatalogPage ? <><UserRound size={18} aria-hidden="true" /><span className="admin-header-label">Amministratore</span></> : 'Amministratore'}
+              <span className="admin-header-arrow" aria-hidden="true">→</span>
             </button>
           ) : (
             <>
-              {user?.role === 'user' && (
+              {user?.role === 'user' && !normalizedPathname.startsWith('/auto/') && (
                 <button className="header-account-link header-glossy-accent" type="button" onClick={() => navigateToPath('/account')} aria-label="Apri la tua area personale">
                   <span className="header-account-avatar" aria-hidden="true">{user.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}</span>
                   <span className="header-account-label">ACCOUNT</span>
@@ -8695,10 +9062,17 @@ function App() {
             aria-controls="site-menu"
             onClick={() => setMenuOpen(true)}
           >
-            <span className="menu-toggle-icon" aria-hidden="true"><i /><i /><i /></span>
+            <svg className="catalog-menu-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3" y="3" width="7" height="7" rx="2" />
+              <rect x="14" y="3" width="7" height="7" rx="2" />
+              <rect x="3" y="14" width="7" height="7" rx="2" />
+              <rect x="14" y="14" width="7" height="7" rx="2" />
+            </svg>
             <span className="menu-toggle-label">MENU</span>
           </button>
         </div>
+          </>
+        )}
         {menuOpen && (
           <>
             <button className="menu-backdrop" type="button" aria-label="Chiudi il menu di navigazione" onClick={closeMenu} />
@@ -8718,31 +9092,31 @@ function App() {
               <nav className="drawer-links" aria-label={`Scopri ${businessName}`}>
                 <p className="drawer-label">SCOPRI</p>
                 <button type="button" onClick={() => goToInventory('all')}>
-                  <span>01</span> Tutte le auto <span className="drawer-arrow" aria-hidden="true">↗</span>
+                  <span>01</span> Tutte le auto <ArrowUpRight className="drawer-arrow" aria-hidden="true" />
                 </button>
                 <button type="button" onClick={() => goToInventory('buy')}>
-                  <span>02</span> Auto in vendita <span className="drawer-arrow" aria-hidden="true">↗</span>
+                  <span>02</span> Auto in vendita <ArrowUpRight className="drawer-arrow" aria-hidden="true" />
                 </button>
                 <button type="button" onClick={() => goToInventory('rent')}>
-                  <span>03</span> Auto a noleggio <span className="drawer-arrow" aria-hidden="true">↗</span>
+                  <span>03</span> Auto a noleggio <ArrowUpRight className="drawer-arrow" aria-hidden="true" />
                 </button>
-                {user?.role !== 'admin' && <a href="/vendi-auto" onClick={(event) => { event.preventDefault(); closeMenu(false); navigateToPath('/vendi-auto'); }}><span>04</span> Vendi la tua auto <span className="drawer-arrow" aria-hidden="true">↗</span></a>}
+                {(user?.role !== 'admin' || isPublicMainHeader) && <a href="/vendi-auto" onClick={(event) => { event.preventDefault(); closeMenu(false); navigateToPath('/vendi-auto'); }}><span>04</span> Vendi la tua auto <ArrowUpRight className="drawer-arrow" aria-hidden="true" /></a>}
                 {user?.role === 'user' && (
                   <>
-                    <a href="/account" onClick={(event) => { event.preventDefault(); closeMenu(false); navigateToPath('/account'); }}><span>05</span> La mia area personale <span className="drawer-arrow" aria-hidden="true">↗</span></a>
+                    <a href="/account" onClick={(event) => { event.preventDefault(); closeMenu(false); navigateToPath('/account'); }}><span>05</span> La mia area personale <ArrowUpRight className="drawer-arrow" aria-hidden="true" /></a>
                   </>
                 )}
                 {user?.role === 'admin' && (
                   <>
-                    <a href="/admin/inventory" onClick={(event) => { event.preventDefault(); closeMenu(false); navigateToPath('/admin/inventory'); }}><span>04</span> Gestione inventario <span className="drawer-arrow" aria-hidden="true">↗</span></a>
-                    <a href="/admin/messages" onClick={(event) => { event.preventDefault(); closeMenu(false); navigateToPath('/admin/messages'); }}><span>05</span> Messaggi e vendite <span className="drawer-arrow" aria-hidden="true">↗</span></a>
+                    <a href="/admin/inventory" onClick={(event) => { event.preventDefault(); closeMenu(false); navigateToPath('/admin/inventory'); }}><span>{isPublicMainHeader ? '05' : '04'}</span> Gestione inventario <ArrowUpRight className="drawer-arrow" aria-hidden="true" /></a>
+                    <a href="/admin/messages" onClick={(event) => { event.preventDefault(); closeMenu(false); navigateToPath('/admin/messages'); }}><span>{isPublicMainHeader ? '06' : '05'}</span> Messaggi e vendite <ArrowUpRight className="drawer-arrow" aria-hidden="true" /></a>
                   </>
                 )}
               </nav>
               <nav className="drawer-secondary" aria-label="Altre informazioni">
                 <a href="/#services" onClick={(event) => { event.preventDefault(); closeMenu(false); navigateToHome('services'); }}>I nostri servizi</a>
                 <a href="/#about" onClick={(event) => { event.preventDefault(); closeMenu(false); navigateToHome('about'); }}>Chi siamo</a>
-                {user?.role !== 'admin' && <a href="/contatti" onClick={(event) => { event.preventDefault(); closeMenu(false); navigateToPath('/contatti'); }}>Contatta il team</a>}
+                {(user?.role !== 'admin' || isPublicMainHeader) && <a href="/contatti" onClick={(event) => { event.preventDefault(); closeMenu(false); navigateToPath('/contatti'); }}>Contatta il team</a>}
                 {user?.role !== 'admin' && luigiContact.email && <a href={`mailto:${luigiContact.email}`}>Scrivici via email</a>}
               </nav>
               <div className="drawer-account">
@@ -8759,7 +9133,7 @@ function App() {
                       Accedi
                     </button>
                     <button className="button button-accent" type="button" onClick={() => { closeMenu(); setAuthMode('signup'); }}>
-                      Crea un account <span aria-hidden="true">↗</span>
+                      Crea un account <ArrowUpRight aria-hidden="true" />
                     </button>
                   </>
                 )}
@@ -8891,9 +9265,6 @@ function App() {
         {!isNotFoundPage && !isAdminRouteBlocked && !isSiteUnavailable && !isSiteSettingsLoading && !isAdminEntryPending && !isAdminEntryCheckError && <div className={isAdminArea && user?.role === 'admin' && !adminPinRequired ? 'admin-main-content' : 'route-content'}>
         {activeVehicle ? (
           <section className="vehicle-detail section-wrap" aria-labelledby="vehicle-detail-title">
-            <button className="button button-outline detail-back header-glossy-accent" type="button" onClick={() => navigateToHome('inventory')}>
-              <SiteIcon name="chevronLeft" /> Torna al catalogo
-            </button>
             <div className="vehicle-detail-heading">
               <div>
                 <p className="eyebrow vehicle-detail-status"><span />{activeVehicle.type === 'rent' ? 'DISPONIBILE A NOLEGGIO' : 'DISPONIBILE PER L’ACQUISTO'}</p>
@@ -10285,7 +10656,7 @@ function App() {
                       <span className="account-profile-details"><strong>{user.name}</strong><small>{user.email}</small></span>
                       <span className="account-profile-indicator" aria-hidden="true" />
                     </div>
-                    <a className="account-header-catalog-link" href="/catalogo" onClick={(event) => { event.preventDefault(); navigateToHome('inventory'); }}>Esplora le auto <span aria-hidden="true">↗</span></a>
+                    <a className="account-header-catalog-link" href="/catalogo" onClick={(event) => { event.preventDefault(); navigateToHome('inventory'); }}>Esplora le auto <ArrowUpRight aria-hidden="true" /></a>
                   </div>
                 </div>
                 <nav className="account-page-nav" aria-label="Sezioni area personale">
@@ -10442,7 +10813,7 @@ function App() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.72, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
           >
-            <p className="eyebrow"><span /> PELUSOGROUP · CELLOLE</p>
+            <p className="eyebrow"><MapPin aria-hidden="true" /> PELUSOGROUP · CELLOLE</p>
             <h1>La strada giusta<br />parte da <em>qui.</em></h1>
             <p className="hero-copy">
               Acquistiamo auto usate e ti aiutiamo a trovare la prossima. Scopri le auto disponibili e le nostre soluzioni di noleggio.
@@ -10452,14 +10823,14 @@ function App() {
                 event.preventDefault();
                 goToInventory('all');
               }}>
-                Scopri le auto <span aria-hidden="true">↗</span>
+                Scopri le auto <ArrowUpRight aria-hidden="true" />
               </a>
-              <a className="text-link" href="#services" onClick={(event) => { event.preventDefault(); navigateToSection('services'); }}>Scopri i servizi <span aria-hidden="true">→</span></a>
+              <a className="text-link" href="#services" onClick={(event) => { event.preventDefault(); navigateToSection('services'); }}>Scopri i servizi <ArrowRight aria-hidden="true" /></a>
             </div>
             <div className="hero-highlights" aria-label="I nostri servizi">
-              <span>Compriamo e vendiamo</span><i aria-hidden="true" />
-              <span>Noleggio</span><i aria-hidden="true" />
-              <span>Valutazione auto</span>
+              <span><CarFront aria-hidden="true" /> Compriamo e vendiamo</span>
+              <span><KeyRound aria-hidden="true" /> Noleggio</span>
+              <span><Tag aria-hidden="true" /> Valutazione auto</span>
             </div>
           </motion.div>
           {!inventoryLoading && !inventoryError && homeInventorySummary.total > 0 && (
@@ -10543,7 +10914,7 @@ function App() {
                 </span>
               )}
               <button className="popular-brands-all" type="button" onClick={() => goToInventory('all')}>
-                Esplora tutto il catalogo <span aria-hidden="true">↗</span>
+                Esplora tutto il catalogo <ArrowUpRight aria-hidden="true" />
               </button>
             </div>
           </div>
@@ -10591,7 +10962,7 @@ function App() {
                           ? <ProgressiveImage className="popular-brand-image" src={logoPath} alt="" loading="eager" fetchPriority="high" variant="compact" />
                           : <span className="popular-brand-monogram">{make.slice(0, 2).toLocaleUpperCase('it')}</span>}
                       </span>
-                      <span className="popular-brand-arrow" aria-hidden="true">↗</span>
+                      <ArrowUpRight className="popular-brand-arrow" aria-hidden="true" />
                     </button>
                     <span className="popular-brand-name">{make}</span>
                     <span className="popular-brand-availability">{count} {count === 1 ? 'auto disponibile' : 'auto disponibili'}</span>
@@ -10609,6 +10980,8 @@ function App() {
 
         <motion.section
           className="home-start section-wrap"
+          id="services"
+          ref={servicesRef}
           aria-labelledby="home-start-title"
           initial={{ opacity: 0, y: 22 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -10633,39 +11006,37 @@ function App() {
               className="home-path-card"
               variants={{ hidden: { opacity: 0 }, visible: { opacity: 1, transition: { duration: 0.48 } } }}
             >
-              <span className="home-path-icon"><SiteIcon name="car" /></span>
+              <span className="home-path-icon"><CarFront aria-hidden="true" /></span>
               <span className="home-path-step">01 · ACQUISTO</span>
               <h3>Cerchi un’auto da acquistare?</h3>
               <p>Consulta le auto disponibili e confronta i dettagli per trovare quella giusta per te.</p>
-              <button type="button" onClick={() => goToInventory('buy')}>Guarda le auto in vendita <span aria-hidden="true">↗</span></button>
+              <button type="button" onClick={() => goToInventory('buy')}>Guarda le auto in vendita <ArrowUpRight aria-hidden="true" /></button>
             </motion.article>
             <motion.article
               className="home-path-card"
               variants={{ hidden: { opacity: 0 }, visible: { opacity: 1, transition: { duration: 0.48 } } }}
             >
-              <span className="home-path-icon"><SiteIcon name="key" /></span>
+              <span className="home-path-icon"><KeyRound aria-hidden="true" /></span>
               <span className="home-path-step">02 · NOLEGGIO</span>
               <h3>Hai bisogno di un’auto a noleggio?</h3>
               <p>Scopri le auto disponibili e scegli quella più adatta al tuo viaggio o alla tua occasione.</p>
-              <button type="button" onClick={() => goToInventory('rent')}>Scopri il noleggio <span aria-hidden="true">↗</span></button>
+              <button type="button" onClick={() => goToInventory('rent')}>Scopri il noleggio <ArrowUpRight aria-hidden="true" /></button>
             </motion.article>
-            {user?.role !== 'admin' && (
-              <motion.article
-                className="home-path-card"
-                variants={{ hidden: { opacity: 0 }, visible: { opacity: 1, transition: { duration: 0.48 } } }}
-              >
-                <span className="home-path-icon"><SiteIcon name="sell" /></span>
-                <span className="home-path-step">03 · VALUTAZIONE</span>
-                <h3>Vuoi vendere la tua auto?</h3>
-                <p>Inviaci i dati e le foto: valuteremo la tua auto e ti ricontatteremo con una proposta riservata.</p>
-                <button type="button" onClick={() => navigateToSection('sell-form')}>Richiedi una valutazione <span aria-hidden="true">↗</span></button>
-              </motion.article>
-            )}
+            <motion.article
+              className="home-path-card"
+              variants={{ hidden: { opacity: 0 }, visible: { opacity: 1, transition: { duration: 0.48 } } }}
+            >
+              <span className="home-path-icon"><Tag aria-hidden="true" /></span>
+              <span className="home-path-step">03 · VALUTAZIONE</span>
+              <h3>Vuoi vendere la tua auto?</h3>
+              <p>Inviaci i dati e le foto: valuteremo la tua auto gratuitamente in meno di 24 ore e ti ricontatteremo con una proposta riservata.</p>
+              <button type="button" onClick={() => navigateToSection('sell-form')}>Richiedi una valutazione <ArrowUpRight aria-hidden="true" /></button>
+            </motion.article>
           </motion.div>
           <div className="home-trust-line">
-            <span className="home-trust-mark" aria-hidden="true"><SiteIcon name="pin" /></span>
+            <span className="home-trust-mark" aria-hidden="true"><MapPin /></span>
             <p><strong>Dal 19 marzo 2017 siamo al tuo fianco.</strong> Ci trovi in sede: {publicAddress}.</p>
-            <button type="button" onClick={() => navigateToSection('about')}>Scopri chi siamo <span aria-hidden="true">→</span></button>
+            <button type="button" onClick={() => navigateToSection('about')}>Scopri chi siamo <ArrowRight aria-hidden="true" /></button>
           </div>
         </motion.section>
           </>
@@ -10788,7 +11159,29 @@ function App() {
             )}
           </div>
 
-          <div className="inventory-toolbar">
+          <div
+            ref={catalogAdvancedFiltersRef}
+            className="advanced-filters"
+            id="catalog-advanced-filters"
+            hidden={!catalogFiltersOpen}
+          >
+            <button
+              className="advanced-filter-drag-handle"
+              type="button"
+              aria-label="Nascondi i filtri avanzati"
+              onClick={(event) => {
+                if (event.detail === 0) setCatalogFiltersOpen(false);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') setCatalogFiltersOpen(false);
+              }}
+              onPointerDown={startCatalogFilterDrag}
+              onPointerMove={moveCatalogFilterDrag}
+              onPointerUp={finishCatalogFilterDrag}
+              onPointerCancel={finishCatalogFilterDrag}
+            >
+              <span aria-hidden="true" />
+            </button>
             <div className="filter-tabs" role="group" aria-label="Filtra le auto">
               {[
                 ['all', 'Tutte'],
@@ -10807,36 +11200,9 @@ function App() {
               ))}
             </div>
             <button className="reset-filters" type="button" onClick={resetFilters}>
-              {makeFilter !== 'all' ? 'Mostra tutte le auto' : 'Azzera filtri'}
+              <RefreshCw size={14} aria-hidden="true" />
+              Azzera filtri
             </button>
-          </div>
-
-          {filter === 'rent' && (
-            <section className="rental-catalog-panel" aria-labelledby="rental-catalog-title">
-              <div>
-                <p className="eyebrow">NOLEGGIO AUTO · CELLOLE</p>
-                <h2 id="rental-catalog-title">Scegli l’auto, <em>poi le date.</em></h2>
-                <p>Apri una vettura, seleziona ritiro e riconsegna nel calendario e inviaci una richiesta. Ti ricontatteremo dopo aver verificato disponibilità e tariffa.</p>
-              </div>
-              <ol aria-label="Come funziona il noleggio">
-                <li><span>01</span><strong>Seleziona un’auto</strong><small>Confronta tariffe giornaliere e dettagli.</small></li>
-                <li><span>02</span><strong>Scegli il periodo</strong><small>Il calendario evidenzia i giorni già occupati.</small></li>
-                <li><span>03</span><strong>Attendi conferma</strong><small>La richiesta non blocca l’auto.</small></li>
-              </ol>
-            </section>
-          )}
-
-          <div className="advanced-filters">
-            <label className="search-field">
-              <span className="search-icon" aria-hidden="true"><SiteIcon name="search" /></span>
-              <span className="visually-hidden">Cerca marca, modello o caratteristiche</span>
-              <input
-                type="search"
-                placeholder="Marca, modello o caratteristiche"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-              />
-            </label>
             <label className="filter-control">
               <span><SiteIcon name="car" /> Marca</span>
               <SelectField value={makeFilter} onChange={(event) => setMakeFilter(event.target.value)}>
@@ -10875,7 +11241,7 @@ function App() {
               </SelectField>
             </label>
             <label className="filter-control">
-              <span><SiteIcon name="price" /> Prezzo massimo (o al giorno)</span>
+              <span><SiteIcon name="price" /> Prezzo massimo</span>
               <SelectField value={maxPrice} onChange={(event) => setMaxPrice(event.target.value)}>
                 <option value="">Qualsiasi prezzo</option>
                 <option value="15000">Fino a 15.000 €</option>
@@ -10905,6 +11271,21 @@ function App() {
               </SelectField>
             </label>
           </div>
+
+          {filter === 'rent' && (
+            <section className="rental-catalog-panel" aria-labelledby="rental-catalog-title">
+              <div>
+                <p className="eyebrow">NOLEGGIO AUTO · CELLOLE</p>
+                <h2 id="rental-catalog-title">Scegli l’auto, <em>poi le date.</em></h2>
+                <p>Apri una vettura, seleziona ritiro e riconsegna nel calendario e inviaci una richiesta. Ti ricontatteremo dopo aver verificato disponibilità e tariffa.</p>
+              </div>
+              <ol aria-label="Come funziona il noleggio">
+                <li><span>01</span><strong>Seleziona un’auto</strong><small>Confronta tariffe giornaliere e dettagli.</small></li>
+                <li><span>02</span><strong>Scegli il periodo</strong><small>Il calendario evidenzia i giorni già occupati.</small></li>
+                <li><span>03</span><strong>Attendi conferma</strong><small>La richiesta non blocca l’auto.</small></li>
+              </ol>
+            </section>
+          )}
           {publicVehicleMetricsError && !inventoryError && <p className="inventory-feedback" role="status">Alcune statistiche potrebbero non essere disponibili al momento.</p>}
           {inventoryLoading && <p className="results-count" role="status">Stiamo preparando la selezione per te…</p>}
           {!inventoryLoading && !inventoryError && (
@@ -11102,15 +11483,15 @@ function App() {
           </div>
           <ol className="sold-cars-steps" aria-label="Le tre tappe dell’acquisto">
             <li className="sold-cars-step">
-              <span className="sold-cars-step-icon"><SiteIcon name="sell" /></span>
+              <span className="sold-cars-step-icon"><ClipboardList aria-hidden="true" /></span>
               <span className="sold-cars-step-copy"><small>01</small>Richiesta d’acquisto</span>
             </li>
             <li className="sold-cars-step">
-              <span className="sold-cars-step-icon"><SiteIcon name="payment" /></span>
+              <span className="sold-cars-step-icon"><CreditCard aria-hidden="true" /></span>
               <span className="sold-cars-step-copy"><small>02</small>Pagamento</span>
             </li>
             <li className="sold-cars-step">
-              <span className="sold-cars-step-icon"><SiteIcon name="delivery" /></span>
+              <span className="sold-cars-step-icon"><Truck aria-hidden="true" /></span>
               <span className="sold-cars-step-copy"><small>03</small>Consegna</span>
             </li>
           </ol>
@@ -11129,6 +11510,8 @@ function App() {
                 id="sold-cars-track"
                 className="sold-cars-grid"
                 onScroll={() => updateCarouselFocus(soldCarsTrackRef, setFocusedSoldCarIndex)}
+                onWheel={interruptCarouselAnimation}
+                onPointerDown={interruptCarouselAnimation}
                 onKeyDown={(event) => {
                   if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
                     event.preventDefault();
@@ -11157,57 +11540,13 @@ function App() {
           )}
           {!salesLoading && !salesError && sales.length > 1 && (
             <div className="horizontal-carousel-controls" aria-label="Scorri le auto consegnate">
-              <button type="button" aria-label="Auto consegnate precedenti" onClick={() => scrollCarousel(soldCarsTrackRef, -1)}><SiteIcon name="chevronLeft" /></button>
-              <button type="button" aria-label="Auto consegnate successive" onClick={() => scrollCarousel(soldCarsTrackRef, 1)}><SiteIcon name="chevronRight" /></button>
+              <button type="button" aria-label="Auto consegnate precedenti" aria-controls="sold-cars-track" onClick={() => scrollCarousel(soldCarsTrackRef, -1)}><ArrowLeft aria-hidden="true" /></button>
+              <button type="button" aria-label="Auto consegnate successive" aria-controls="sold-cars-track" onClick={() => scrollCarousel(soldCarsTrackRef, 1)}><ArrowRight aria-hidden="true" /></button>
             </div>
           )}
           <div className="sold-cars-footer">
             <span>La prossima storia potrebbe essere la tua.</span>
-            <button type="button" onClick={() => goToInventory('buy')}>Trova la tua auto <span aria-hidden="true">↗</span></button>
-          </div>
-        </motion.section>
-
-        <motion.section
-          className="services-section"
-          id="services"
-          initial={{ opacity: 0, y: 22 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.12 }}
-          transition={{ duration: 0.62, ease: [0.22, 1, 0.36, 1] }}
-        >
-          <div className="section-wrap">
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">AL TUO FIANCO, IN OGNI SCELTA</p>
-                <h2>Un team. <em>Tre modi per aiutarti.</em></h2>
-              </div>
-                <p className="section-intro">Ti accompagniamo nella scelta della tua prossima auto, nella vendita della tua vettura o nel noleggio.</p>
-            </div>
-            <div className="service-grid">
-              <article className="service-card">
-                <span className="service-number">01</span>
-                <span className="service-symbol"><SiteIcon name="car" /></span>
-                <h3>Acquista un’auto</h3>
-                <p>Scopri le auto in vendita, con dettagli chiari e supporto per scegliere quella più adatta a te.</p>
-                <a href="/catalogo" onClick={(event) => { event.preventDefault(); navigateToPath('/catalogo'); }}>Vai al catalogo <span aria-hidden="true">→</span></a>
-              </article>
-              <article className="service-card">
-                <span className="service-number">02</span>
-                <span className="service-symbol"><SiteIcon name="key" /></span>
-                <h3>Vivi l’esperienza</h3>
-                <p>Scopri le auto a noleggio per un viaggio, un’occasione speciale o ogni volta che ti serve.</p>
-                <button type="button" onClick={() => goToInventory('rent')}>
-                  Scopri i noleggi <span aria-hidden="true">→</span>
-                </button>
-              </article>
-              <article className="service-card">
-                <span className="service-number">03</span>
-                <span className="service-symbol"><SiteIcon name="sell" /></span>
-                <h3>Compriamo la tua auto</h3>
-                <p>Inviaci i dati e le foto: valuteremo la tua auto e ti ricontatteremo con una proposta riservata.</p>
-                <button type="button" onClick={() => navigateToSection('sell-form')}>Richiedi una valutazione <span aria-hidden="true">→</span></button>
-              </article>
-            </div>
+            <button type="button" onClick={() => goToInventory('buy')}>Trova la tua auto <ArrowUpRight aria-hidden="true" /></button>
           </div>
         </motion.section>
 
@@ -11254,10 +11593,10 @@ function App() {
             </div>
             <div className="about-actions">
               <button className="button button-accent button-small" type="button" onClick={() => goToInventory('buy')}>
-                Esplora le auto <span aria-hidden="true">↗</span>
+                Esplora le auto <ArrowUpRight aria-hidden="true" />
               </button>
               <button className="button button-outline button-small" type="button" onClick={() => navigateToPath('/contatti')}>
-                Parla con il team <span aria-hidden="true">↗</span>
+                Parla con il team <ArrowUpRight aria-hidden="true" />
               </button>
             </div>
             <div className="peluso-team-heading">
@@ -11305,12 +11644,12 @@ function App() {
         >
           <div className="reviews-heading">
             <div>
-              <p className="eyebrow">RECENSIONI VERIFICATE</p>
+              <p className="eyebrow"><ShieldCheck aria-hidden="true" /> RECENSIONI VERIFICATE</p>
               <h2 id="reviews-title">Esperienze <em>condivise.</em></h2>
             </div>
             {user?.role !== 'user' && (
               <button className="text-link reviews-login-link" type="button" onClick={() => { setAuthError(''); setAuthMode('login'); }}>
-                Accedi per lasciare una recensione dopo l’acquisto <span aria-hidden="true">↗</span>
+                Accedi per lasciare una recensione dopo l’acquisto <ArrowRight aria-hidden="true" />
               </button>
             )}
           </div>
@@ -11330,6 +11669,8 @@ function App() {
                 id="customer-reviews-track"
                 className="customer-reviews-grid"
                 onScroll={() => updateCarouselFocus(customerReviewsTrackRef, setFocusedReviewIndex)}
+                onWheel={interruptCarouselAnimation}
+                onPointerDown={interruptCarouselAnimation}
                 onKeyDown={(event) => {
                   if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
                     event.preventDefault();
@@ -11341,10 +11682,13 @@ function App() {
               >
                 {customerReviews.map((review, index) => (
                   <article className={`customer-review-card${customerReviews.length > 1 && focusedReviewIndex === index ? ' is-focused' : ''}`} key={review.id}>
-                    <div className="customer-review-rating" aria-label={`${review.rating} stelle su 5`}>
-                      {Array.from({ length: 5 }, (_, index) => (
-                        <span className={index < review.rating ? 'is-filled' : ''} aria-hidden="true" key={index}>★</span>
-                      ))}
+                    <div className="customer-review-top">
+                      <div className="customer-review-rating" role="img" aria-label={`${review.rating} stelle su 5`}>
+                        {Array.from({ length: 5 }, (_, starIndex) => (
+                          <Star className={starIndex < review.rating ? 'is-filled' : ''} aria-hidden="true" key={starIndex} />
+                        ))}
+                      </div>
+                      <Quote className="customer-review-quote" aria-hidden="true" />
                     </div>
                     <p
                       tabIndex={review.text.length > 200 ? 0 : undefined}
@@ -11353,7 +11697,11 @@ function App() {
                       {review.text}
                     </p>
                     <div className="customer-review-author">
-                      <span>{review.authorName}</span>
+                      <span className="customer-review-avatar" aria-hidden="true"><UserRound /></span>
+                      <div className="customer-review-identity">
+                        <span>{review.authorName}</span>
+                        <span className="customer-review-verified"><ShieldCheck aria-hidden="true" /> Acquisto verificato</span>
+                      </div>
                       <time dateTime={review.createdAt}>{new Date(review.createdAt).toLocaleDateString('it-IT')}</time>
                     </div>
                     <span className="customer-review-vehicle">{review.year} {review.make} {review.model}</span>
@@ -11367,8 +11715,8 @@ function App() {
           )}
           {!customerReviewsLoading && !customerReviewsError && customerReviews.length > 1 && (
             <div className="horizontal-carousel-controls" aria-label="Scorri le recensioni">
-              <button type="button" aria-label="Recensioni precedenti" onClick={() => scrollCarousel(customerReviewsTrackRef, -1)}><SiteIcon name="chevronLeft" /></button>
-              <button type="button" aria-label="Recensioni successive" onClick={() => scrollCarousel(customerReviewsTrackRef, 1)}><SiteIcon name="chevronRight" /></button>
+              <button type="button" aria-label="Recensioni precedenti" aria-controls="customer-reviews-track" onClick={() => scrollCarousel(customerReviewsTrackRef, -1)}><ArrowLeft aria-hidden="true" /></button>
+              <button type="button" aria-label="Recensioni successive" aria-controls="customer-reviews-track" onClick={() => scrollCarousel(customerReviewsTrackRef, 1)}><ArrowRight aria-hidden="true" /></button>
             </div>
           )}
         </motion.section>
@@ -11790,10 +12138,11 @@ function App() {
           </section>
         </div>
       )}
+      </>}
 
       {authMode && (
         <div className={`modal-backdrop${adminPinRequired ? ' admin-pin-backdrop' : ''}`} onMouseDown={(event) => { if (event.target === event.currentTarget && !adminPinRequired) closeAuth(); }}>
-          <section className={adminPinRequired ? 'admin-pin-modal' : 'auth-modal'} role="dialog" aria-modal="true" aria-labelledby="auth-title">
+          <section className={adminPinRequired ? 'admin-pin-modal' : 'auth-modal'} role={adminPinRequired ? 'main' : 'dialog'} aria-modal={adminPinRequired ? undefined : 'true'} aria-labelledby="auth-title">
             <button className={`modal-close${adminPinRequired ? ' modal-exit' : ''}`} type="button" aria-label={adminPinRequired ? 'Esci e annulla la verifica' : 'Chiudi la finestra'} onClick={adminPinRequired ? handleLogout : closeAuth}><svg className="close-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg></button>
             {!adminPinRequired && (
               <a className="brand modal-brand" href="#home" onClick={closeAuth}>
@@ -11814,7 +12163,7 @@ function App() {
                 </svg>
               </div>
             )}
-            <p className={`eyebrow${adminPinRequired ? ' admin-pin-eyebrow' : ''}`}>{adminPinRequired ? 'ACCESSO AMMINISTRATORE · LIVELLO 02' : authMode === 'signup' ? 'IL TUO PROSSIMO VIAGGIO' : 'BENTORNATO'}</p>
+            <p className={`eyebrow${adminPinRequired ? ' admin-pin-eyebrow' : ''}`}>{!adminPinRequired && <ShieldCheck aria-hidden="true" />}{adminPinRequired ? 'ACCESSO AMMINISTRATORE · LIVELLO 02' : authMode === 'signup' ? 'IL TUO PROSSIMO VIAGGIO' : 'BENTORNATO'}</p>
             <h2 id="auth-title">
               {adminPinRequired
                 ? <>SEZIONE <span className="admin-pin-title-accent">RISERVATA</span></>
@@ -11874,10 +12223,18 @@ function App() {
               onChange={(event) => {
                 const field = event.target.name;
                 if (field) {
-                  const values = Object.fromEntries(new FormData(event.currentTarget).entries());
-                  setAuthFormValues(values);
-                  setAuthTouchedFields((current) => ({ ...current, [field]: true }));
-                  setAuthFieldErrors(validateAuthValues(authMode, values, adminTotpRequired));
+                  if (authMode === 'admin-pin') {
+                    if (authFieldErrors[field]) {
+                      const values = Object.fromEntries(new FormData(event.currentTarget).entries());
+                      const errors = validateAuthValues(authMode, values, adminTotpRequired);
+                      if (!errors[field]) setAuthFieldErrors(errors);
+                    }
+                  } else {
+                    const values = Object.fromEntries(new FormData(event.currentTarget).entries());
+                    setAuthFormValues(values);
+                    setAuthTouchedFields((current) => ({ ...current, [field]: true }));
+                    setAuthFieldErrors(validateAuthValues(authMode, values, adminTotpRequired));
+                  }
                 }
                 if (authError) setAuthError('');
               }}
@@ -11911,30 +12268,37 @@ function App() {
                 </label>
               ) : authMode === 'signup' && (
                 <label>
-                  Nome e cognome
-                  <input name="name" type="text" autoComplete="name" minLength="2" maxLength="80" aria-invalid={Boolean(authTouchedFields.name && authFieldErrors.name)} aria-describedby={authTouchedFields.name && authFieldErrors.name ? 'auth-name-error' : undefined} required />
+                  <span className="auth-field-label">Nome e cognome</span>
+                  <span className="auth-input-wrap">
+                    <UserRound className="auth-input-icon" aria-hidden="true" />
+                    <input name="name" type="text" autoComplete="name" minLength="2" maxLength="80" aria-invalid={Boolean(authTouchedFields.name && authFieldErrors.name)} aria-describedby={authTouchedFields.name && authFieldErrors.name ? 'auth-name-error' : undefined} required />
+                  </span>
                   {authTouchedFields.name && authFieldErrors.name && <span className="auth-field-error" id="auth-name-error" role="alert">{authFieldErrors.name}</span>}
                 </label>
               )}
               {!adminPinRequired && (
                 <>
                   <label>
-                    {authMode === 'signup' ? 'Indirizzo email' : 'Nome utente o indirizzo email'}
-                    <input
-                      name="email"
-                      type={authMode === 'signup' ? 'email' : 'text'}
-                      autoComplete={authMode === 'signup' ? 'email' : 'username'}
-                      maxLength="254"
-                      placeholder={authMode === 'signup' ? 'nome@esempio.it' : 'Email'}
-                      aria-invalid={Boolean(authTouchedFields.email && authFieldErrors.email)}
-                      aria-describedby={authTouchedFields.email && authFieldErrors.email ? 'auth-email-error' : undefined}
-                      required
-                    />
+                    <span className="auth-field-label">{authMode === 'signup' ? 'Indirizzo email' : 'Nome utente o indirizzo email'}</span>
+                    <span className="auth-input-wrap">
+                      <Mail className="auth-input-icon" aria-hidden="true" />
+                      <input
+                        name="email"
+                        type={authMode === 'signup' ? 'email' : 'text'}
+                        autoComplete={authMode === 'signup' ? 'email' : 'username'}
+                        maxLength="254"
+                        placeholder={authMode === 'signup' ? 'nome@esempio.it' : 'Email'}
+                        aria-invalid={Boolean(authTouchedFields.email && authFieldErrors.email)}
+                        aria-describedby={authTouchedFields.email && authFieldErrors.email ? 'auth-email-error' : undefined}
+                        required
+                      />
+                    </span>
                     {authTouchedFields.email && authFieldErrors.email && <span className="auth-field-error" id="auth-email-error" role="alert">{authFieldErrors.email}</span>}
                   </label>
                   <label>
-                    Password
-                    <span className="password-input-wrap">
+                    <span className="auth-field-label">Password</span>
+                    <span className="password-input-wrap auth-input-wrap">
+                      <LockKeyhole className="auth-input-icon" aria-hidden="true" />
                       <input name="password" type={passwordVisible ? 'text' : 'password'} autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'} minLength={authMode === 'signup' ? '8' : undefined} maxLength="72" aria-invalid={Boolean(authTouchedFields.password && authFieldErrors.password)} aria-describedby={authTouchedFields.password && authFieldErrors.password ? 'auth-password-error' : undefined} required />
                       <VisibilityToggle visible={passwordVisible} onToggle={() => setPasswordVisible((visible) => !visible)} />
                     </span>
@@ -11951,7 +12315,7 @@ function App() {
                         <div className="auth-password-checks">
                           {passwordRequirements.map((requirement) => (
                             <span className={requirement.valid ? 'is-valid' : ''} key={requirement.key}>
-                              <span aria-hidden="true">{requirement.valid ? '✓' : '○'}</span>
+                              <span aria-hidden="true">{requirement.valid ? <Check /> : <Circle />}</span>
                               {requirement.label}
                             </span>
                           ))}
@@ -11961,16 +12325,19 @@ function App() {
                   </label>
                   {authMode === 'signup' && (
                     <label>
-                      Conferma password
-                      <input
-                        name="confirmPassword"
-                        type="password"
-                        autoComplete="new-password"
-                        maxLength="72"
-                        aria-invalid={Boolean(authTouchedFields.confirmPassword && authFieldErrors.confirmPassword)}
-                        aria-describedby={authTouchedFields.confirmPassword && authFieldErrors.confirmPassword ? 'auth-confirm-password-error' : undefined}
-                        required
-                      />
+                      <span className="auth-field-label">Conferma password</span>
+                      <span className="auth-input-wrap">
+                        <LockKeyhole className="auth-input-icon" aria-hidden="true" />
+                        <input
+                          name="confirmPassword"
+                          type="password"
+                          autoComplete="new-password"
+                          maxLength="72"
+                          aria-invalid={Boolean(authTouchedFields.confirmPassword && authFieldErrors.confirmPassword)}
+                          aria-describedby={authTouchedFields.confirmPassword && authFieldErrors.confirmPassword ? 'auth-confirm-password-error' : undefined}
+                          required
+                        />
+                      </span>
                       {authTouchedFields.confirmPassword && authFieldErrors.confirmPassword && <span className="auth-field-error" id="auth-confirm-password-error" role="alert">{authFieldErrors.confirmPassword}</span>}
                     </label>
                   )}
@@ -11978,7 +12345,7 @@ function App() {
               )}
               {authError && <p className="form-error" role="alert">{authError}</p>}
               <button className="button button-accent form-submit header-glossy-accent" type="submit" disabled={authBusy || (!authReady && authMode !== 'admin-pin') || (adminPinRequired && adminPinSecondsRemaining <= 0)}>
-                {authBusy ? 'Attendi…' : !authReady && authMode !== 'admin-pin' ? 'Verifica sessione…' : adminPinRequired ? adminPinSecondsRemaining <= 0 ? 'Tempo scaduto' : 'Accedi' : authMode === 'signup' ? 'Crea account' : 'Accedi'} <span aria-hidden="true">↗</span>
+                {authBusy ? 'Attendi…' : !authReady && authMode !== 'admin-pin' ? 'Verifica sessione…' : adminPinRequired ? adminPinSecondsRemaining <= 0 ? 'Tempo scaduto' : 'Accedi' : authMode === 'signup' ? 'Crea account' : 'Accedi'} {!adminPinRequired && <ArrowUpRight aria-hidden="true" />}
               </button>
             </form>
             {adminPinRequired && (

@@ -944,6 +944,37 @@ router.delete('/security/emails/notification/:email', requireAdmin, async (req, 
   }
 });
 
+router.post('/security/emergency-reset', async (req, res) => {
+  if (process.env.NODE_ENV === 'production') return res.status(404).json({ error: 'Not Found' });
+  const clientIp = normalizedIp(req.ip);
+  if (clientIp !== '127.0.0.1' && clientIp !== '::1') {
+    return res.status(403).json({ error: 'Reset disponibile solo dalla sessione locale.' });
+  }
+
+  try {
+    const settings = await getAdminSecuritySettings();
+    settings.trafficLimitsEnabled = false;
+    settings.ddosProtectionEnabled = false;
+    settings.ipRules = (settings.ipRules || []).filter((rule) => rule.address !== clientIp);
+    await settings.save();
+    invalidateSecuritySettingsCache();
+
+    const day = new Date().toISOString().slice(0, 10);
+    const deletedCounters = await AdminTrafficCounter.deleteMany({ day });
+
+    return res.json({
+      reset: true,
+      trafficLimitsEnabled: false,
+      ddosProtectionEnabled: false,
+      deletedCounters: deletedCounters.deletedCount,
+      day,
+    });
+  } catch (error) {
+    console.error('Could not reset admin traffic protection:', error);
+    return res.status(500).json({ error: 'Non è stato possibile ripristinare i limiti di traffico.' });
+  }
+});
+
 router.get('/security/controls', requireAdmin, async (req, res) => {
   try {
     const settings = await getAdminSecuritySettings();

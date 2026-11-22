@@ -10,6 +10,7 @@ const router = express.Router();
 const sessionCookieName = '__Host-peluso_session';
 const sessionLifetimeMs = 7 * 24 * 60 * 60 * 1000;
 const adminPinChallengeLifetimeMs = 60 * 1000;
+const pendingAdminSessionRetentionMs = 24 * 60 * 60 * 1000;
 const adminPinLockoutMs = 30 * 60 * 1000;
 const adminPinMaxAttempts = 3;
 
@@ -66,17 +67,19 @@ function signupPasswordError(password) {
 async function createSession(user, res) {
   const token = crypto.randomBytes(32).toString('base64url');
   const isAdmin = user.role === 'admin';
-  const lifetimeMs = isAdmin ? adminPinChallengeLifetimeMs : sessionLifetimeMs;
-  const expiresAt = new Date(Date.now() + lifetimeMs);
+  const now = Date.now();
+  // Keep the authorization deadline independent of MongoDB's TTL cleanup clock.
+  const pendingPinExpiresAt = isAdmin ? new Date(now + adminPinChallengeLifetimeMs) : undefined;
+  const expiresAt = new Date(now + (isAdmin ? pendingAdminSessionRetentionMs : sessionLifetimeMs));
   await AuthSession.create({
     userId: user._id,
     tokenHash: hashSessionToken(token),
     adminVerified: !isAdmin,
-    ...(isAdmin ? { pendingPinExpiresAt: expiresAt } : {}),
+    ...(isAdmin ? { pendingPinExpiresAt } : {}),
     expiresAt,
   });
-  setSessionCookie(res, token, lifetimeMs);
-  return isAdmin ? Math.max(0, expiresAt.getTime() - Date.now()) : null;
+  setSessionCookie(res, token, isAdmin ? adminPinChallengeLifetimeMs : sessionLifetimeMs);
+  return isAdmin ? Math.max(0, pendingPinExpiresAt.getTime() - Date.now()) : null;
 }
 
 router.post('/signup', async (req, res) => {

@@ -31,6 +31,8 @@ async function getAuthenticatedSession(req) {
 
   const user = await User.findById(session.userId);
   if (!user) return null;
+  if (user.role === 'admin' && !session.adminVerified
+      && (!session.pendingPinExpiresAt || session.pendingPinExpiresAt <= new Date())) return null;
   return { session, user };
 }
 

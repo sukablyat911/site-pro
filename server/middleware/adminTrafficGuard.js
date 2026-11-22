@@ -87,14 +87,21 @@ function incrementBurst(ipAddress) {
 }
 
 function isSecurityControlRequest(req) {
-  return req.path === '/api/admin/security'
-    || req.path.startsWith('/api/admin/security/');
+  return req.path.startsWith('/api/admin/')
+    || req.path === '/api/users/login'
+    || req.path === '/api/users/admin-pin'
+    || req.path === '/api/users/me'
+    || req.path === '/api/users/logout';
 }
 
 async function adminTrafficGuard(req, res, next) {
   if (isSecurityControlRequest(req)) return next();
 
   const ipAddress = getClientIp(req.ip);
+  if (process.env.NODE_ENV !== 'production'
+      && (ipAddress === '127.0.0.1' || ipAddress === '::1')) {
+    return next();
+  }
   try {
     const settings = await getSecuritySettings();
     const now = new Date();
