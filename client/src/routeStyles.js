@@ -30,6 +30,7 @@ const getRouteStyleGroups = (pathname) => {
   if (normalizedPath === '/catalogo') return ['catalog', 'vehicle'];
   if (normalizedPath === '/vendi-auto') return ['sell', 'vehicle'];
   if (normalizedPath === '/contatti') return ['contact'];
+  if (['/privacy', '/termini-condizioni', '/cookie-policy', '/note-legali'].includes(normalizedPath)) return ['home'];
   if (normalizedPath === '/account' || normalizedPath.startsWith('/account/')) return ['account'];
   return ['home', 'catalog', 'vehicle', 'contact'];
 };

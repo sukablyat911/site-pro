@@ -2,6 +2,18 @@
 
 A dark automotive marketplace built with React, Node.js, Express, and MongoDB.
 
+For an Italian overview of the PRO site's features, see the [user guide](./GUIDA-PRO.md).
+Legal document drafts are in [`legal/`](./legal/); complete the marked
+placeholders and obtain legal review before publishing the site. After login,
+administrators can edit the published Markdown versions from
+**Dashboard → Impostazioni → Documenti legali**; saved versions are stored in
+MongoDB and override the repository drafts.
+
+The server generates `robots.txt` and a vehicle-aware `sitemap.xml`. Public
+routes also expose Open Graph metadata and Schema.org data for the dealership
+and individual vehicles. Signed-in customers can manage their credentials and
+delete their account from **Area personale → Privacy e account**.
+
 ## Tech Stack
 - Frontend: React + Vite + custom responsive CSS
 - Backend: Node.js + Express
@@ -33,6 +45,12 @@ A dark automotive marketplace built with React, Node.js, Express, and MongoDB.
 
 Account signup and sign-in use MongoDB-backed users and server-side sessions.
 Passwords are hashed before storage; session tokens are kept in HTTP-only cookies.
+Customers must confirm their current password to change credentials or delete an
+account. Email changes also require a code sent to the new address via SMTP.
+Previously submitted requests retain the contact details supplied with them.
+Deleting an account immediately removes access and revokes sessions; existing
+requests, conversations, purchases and reviews remain stored separately, while
+the deleted account is no longer shown as the buyer in the sales history.
 Contact messages are stored in the `contact_inquiries` collection and emailed to
 `CONTACT_EMAIL` (defaults to `luigi_peluso26@proton.me`). Configure `SMTP_HOST`,
 `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, and `SMTP_PASS` in `.env`; `SMTP_FROM`
@@ -43,7 +61,7 @@ sender address. The API reports an error if SMTP is missing or delivery fails;
 the submitted inquiry remains stored in MongoDB and its email status is recorded.
 Visitors can request a dealership appointment from an auto detail page by choosing
 a future date and time. Requests are stored in the `dealer_visit_requests`
-collection and managed in `/admin/visits`; admins must provide a reason when
+collection and managed in `/admin/visits`; admins may provide a reason when
 accepting or declining, and the decision is emailed to the customer when SMTP is
 configured. Admin notification failures are shown in the admin area while the
 request remains available there.

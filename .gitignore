@@ -4,9 +4,4 @@
 node_modules/
 client/node_modules/
 client/dist/
-server/uploads/cars/*
-!server/uploads/cars/.gitkeep
-server/uploads/site/*
-!server/uploads/site/.gitkeep
-server/uploads/sell-submissions/*
 *.log

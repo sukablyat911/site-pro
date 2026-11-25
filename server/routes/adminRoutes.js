@@ -12,11 +12,13 @@ const AdminSecurityEvent = require('../models/AdminSecurityEvent');
 const AdminSecurityAttempt = require('../models/AdminSecurityAttempt');
 const AdminSecuritySettings = require('../models/AdminSecuritySettings');
 const AdminSettings = require('../models/AdminSettings');
+const AdminActivityLog = require('../models/AdminActivityLog');
+const LegalDocument = require('../models/LegalDocument');
 const AdminTrafficCounter = require('../models/AdminTrafficCounter');
 const AuthSession = require('../models/AuthSession');
 const User = require('../models/User');
 const { getAdminConfig, getAdminPinHash } = require('../config/admin');
-const { getAuthenticatedSession, requireAdmin } = require('../middleware/auth');
+const { getAuthenticatedSession, requireAdmin, requireSuperAdmin } = require('../middleware/auth');
 const { hashToken, requireAdminApiToken } = require('../middleware/adminApiToken');
 const { invalidateSecuritySettingsCache, logSecurityEvent } = require('../middleware/adminTrafficGuard');
 const { invalidateSiteAvailabilityCache } = require('../middleware/siteAvailabilityGuard');
@@ -46,6 +48,12 @@ const allowedEmailPurposes = new Set(['primary', 'notification']);
 const allowedIpRuleDurations = new Set([0, 1, 24, 168, 720, 8760]);
 const allowedWeekdays = new Set(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']);
 const allowedAnnouncementTypes = new Set(['info', 'warning', 'alert']);
+const legalDocumentDefinitions = {
+  privacy: { title: 'Informativa privacy', file: 'PRIVACY-POLICY.md' },
+  'termini-condizioni': { title: 'Termini e condizioni', file: 'TERMINI-CONDIZIONI.md' },
+  'cookie-policy': { title: 'Cookie Policy', file: 'COOKIE-POLICY.md' },
+  'note-legali': { title: 'Note legali', file: 'NOTE-LEGALI.md' },
+};
 const siteImageUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 8 * 1024 * 1024, files: 1 },
@@ -61,6 +69,15 @@ async function getAdminSettings() {
   let settings = await AdminSettings.findById('global').select('+adminAccessPathHash');
   if (!settings) settings = await AdminSettings.create({ _id: 'global' });
   return settings;
+}
+
+async function getLegalDocumentForAdmin(slug) {
+  const definition = legalDocumentDefinitions[slug];
+  if (!definition) return null;
+  const stored = await LegalDocument.findOne({ slug }).lean();
+  if (stored) return stored;
+  const content = await fs.promises.readFile(path.join(__dirname, '../../legal', definition.file), 'utf8');
+  return { slug, content, updatedAt: null };
 }
 
 async function getSiteBusinessName() {
@@ -290,6 +307,7 @@ function normalizeSettingsInput(body) {
   const settings = {};
   const stringFields = {
     businessName: 120,
+    siteTitle: 160,
     contactEmail: 254,
     contactPhone: 40,
     address: 240,
@@ -307,6 +325,9 @@ function normalizeSettingsInput(body) {
   }
   if (settings.businessName !== undefined && settings.businessName.length < 2) {
     return { error: 'Il nome dell’attività deve contenere almeno 2 caratteri.' };
+  }
+  if (settings.siteTitle !== undefined && settings.siteTitle.length < 2) {
+    return { error: 'Il titolo della pagina deve contenere almeno 2 caratteri.' };
   }
   if (settings.address !== undefined && settings.address.length < 5) {
     return { error: 'Inserisci un indirizzo completo per la concessionaria.' };
@@ -344,6 +365,14 @@ function normalizeSettingsInput(body) {
       return { error: 'Il percorso dell’immagine non è valido.' };
     }
     settings[field] = source[field];
+  }
+  if (source.faviconUrl !== undefined) {
+    if (typeof source.faviconUrl !== 'string'
+        || !(['/favicon.svg'].includes(source.faviconUrl)
+          || /^\/uploads\/site\/[a-f0-9]{32}\.(?:jpg|png|webp)$/.test(source.faviconUrl))) {
+      return { error: 'Il percorso del favicon non è valido.' };
+    }
+    settings.faviconUrl = source.faviconUrl;
   }
   if (source.staffContacts !== undefined) {
     settings.staffContacts = normalizeContacts(source.staffContacts);
@@ -386,6 +415,46 @@ router.get('/settings', requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('Could not load admin settings:', error);
     return res.status(500).json({ error: 'Non è stato possibile caricare le impostazioni.' });
+  }
+});
+
+router.get('/legal-documents', requireAdmin, async (req, res) => {
+  try {
+    const documents = await Promise.all(Object.entries(legalDocumentDefinitions).map(async ([slug, definition]) => {
+      const document = await getLegalDocumentForAdmin(slug);
+      return { slug, title: definition.title, content: document.content, updatedAt: document.updatedAt };
+    }));
+    return res.json({ documents });
+  } catch (error) {
+    console.error('Could not load legal documents:', error);
+    return res.status(500).json({ error: 'Non è stato possibile caricare i documenti legali.' });
+  }
+});
+
+router.put('/legal-documents/:slug', requireAdmin, async (req, res) => {
+  const { slug } = req.params;
+  if (!legalDocumentDefinitions[slug]) return res.status(404).json({ error: 'Documento legale non trovato.' });
+  const content = typeof req.body?.content === 'string' ? req.body.content.replace(/\r\n/g, '\n').trim() : '';
+  if (content.length < 20 || content.length > 100000) {
+    return res.status(400).json({ error: 'Il documento deve contenere tra 20 e 100.000 caratteri.' });
+  }
+  try {
+    const document = await LegalDocument.findOneAndUpdate(
+      { slug },
+      { $set: { content, updatedBy: req.user._id } },
+      { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true },
+    ).lean();
+    return res.json({
+      document: {
+        slug,
+        title: legalDocumentDefinitions[slug].title,
+        content: document.content,
+        updatedAt: document.updatedAt,
+      },
+    });
+  } catch (error) {
+    console.error('Could not save legal document:', error);
+    return res.status(500).json({ error: 'Non è stato possibile salvare il documento legale.' });
   }
 });
 
@@ -448,7 +517,8 @@ router.post('/settings/assets/:kind', requireAdmin, (req, res, next) => {
   const { kind } = req.params;
   const file = req.file;
   const isLogo = kind === 'logo';
-  if ((!isLogo && kind !== 'hero') || !file) {
+  const isFavicon = kind === 'favicon';
+  if ((!isLogo && !isFavicon && kind !== 'hero') || !file) {
     return res.status(400).json({ error: 'Seleziona un’immagine valida da caricare.' });
   }
 
@@ -467,7 +537,7 @@ router.post('/settings/assets/:kind', requireAdmin, (req, res, next) => {
   const filename = `${crypto.randomBytes(16).toString('hex')}.${extension}`;
   const imagePath = path.join(__dirname, '../uploads/site', filename);
   const imageUrl = `/uploads/site/${filename}`;
-  const field = isLogo ? 'logoUrl' : 'heroImageUrl';
+  const field = isLogo ? 'logoUrl' : isFavicon ? 'faviconUrl' : 'heroImageUrl';
   let createdFile = false;
   try {
     await fs.promises.mkdir(path.dirname(imagePath), { recursive: true });
@@ -526,6 +596,7 @@ router.get('/security', requireAdmin, async (req, res) => {
         passkeysNote: 'La registrazione FIDO2 sarà disponibile dopo l’installazione della libreria WebAuthn verificata.',
         pinConfigured: Boolean(user.security?.adminPinHash || getAdminPinHash()),
         accountEmail: user.email,
+        isSuperAdmin: user.username === 'luigipeluso',
         notificationEmails: user.security?.notificationEmails || [],
         pendingEmailVerifications: (user.security?.pendingEmailVerifications || []).map((entry) => ({
           email: entry.email,
@@ -542,7 +613,7 @@ router.get('/security', requireAdmin, async (req, res) => {
   }
 });
 
-router.post('/security/admins/invitations', requireAdmin, async (req, res) => {
+router.post('/security/admins/invitations', requireAdmin, requireSuperAdmin, async (req, res) => {
   const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
   const username = typeof req.body?.username === 'string' ? req.body.username.trim().toLowerCase() : '';
   const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
@@ -621,7 +692,7 @@ router.post('/security/admins/invitations', requireAdmin, async (req, res) => {
   }
 });
 
-router.post('/security/admins/invitations/verify', requireAdmin, async (req, res) => {
+router.post('/security/admins/invitations/verify', requireAdmin, requireSuperAdmin, async (req, res) => {
   const invitationId = typeof req.body?.invitationId === 'string' ? req.body.invitationId : '';
   const code = typeof req.body?.code === 'string' ? req.body.code.trim() : '';
   if (!mongoose.isValidObjectId(invitationId) || !/^\d{8}$/.test(code)) {
@@ -680,7 +751,7 @@ router.post('/security/admins/invitations/verify', requireAdmin, async (req, res
   }
 });
 
-router.delete('/security/admins/:adminId', requireAdmin, async (req, res) => {
+router.delete('/security/admins/:adminId', requireAdmin, requireSuperAdmin, async (req, res) => {
   const { adminId } = req.params;
   const currentPassword = typeof req.body?.currentPassword === 'string' ? req.body.currentPassword : '';
   const factor = typeof req.body?.factor === 'string' ? req.body.factor.trim() : '';
@@ -702,6 +773,7 @@ router.delete('/security/admins/:adminId', requireAdmin, async (req, res) => {
     ]);
     if (!target) return res.status(404).json({ error: 'Account amministratore non trovato.' });
     if (adminCount <= 1) return res.status(409).json({ error: 'Non è possibile rimuovere l’ultimo account amministratore.' });
+    if (target.username === 'luigipeluso') return res.status(403).json({ error: 'Il Super Admin non può essere rimosso.' });
     const adminConfig = getAdminConfig();
     if (adminConfig && target.username === adminConfig.username) {
       return res.status(409).json({ error: 'L’account bootstrap non può essere revocato finché resta configurato nel server.' });
@@ -972,6 +1044,31 @@ router.post('/security/emergency-reset', async (req, res) => {
   } catch (error) {
     console.error('Could not reset admin traffic protection:', error);
     return res.status(500).json({ error: 'Non è stato possibile ripristinare i limiti di traffico.' });
+  }
+});
+
+router.get('/activity-logs', requireAdmin, async (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const logs = await AdminActivityLog.find({})
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean();
+    return res.json({
+      logs: logs.map((log) => ({
+        id: log._id.toString(),
+        action: log.action,
+        resource: log.resource,
+        actorName: log.actorName,
+        targetId: log.targetId,
+        outcome: log.outcome,
+        statusCode: log.statusCode,
+        createdAt: log.createdAt,
+      })),
+    });
+  } catch (error) {
+    console.error('Could not load admin activity logs:', error);
+    return res.status(500).json({ error: 'Non è stato possibile caricare le attività amministrative.' });
   }
 });
 

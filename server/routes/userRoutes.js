@@ -4,7 +4,10 @@ const crypto = require('node:crypto');
 const User = require('../models/User');
 const AuthSession = require('../models/AuthSession');
 const AdminPinAttempt = require('../models/AdminPinAttempt');
+const AdminSecurityAttempt = require('../models/AdminSecurityAttempt');
 const { getAdminConfig, getAdminPinHash } = require('../config/admin');
+const { getAuthenticatedSession } = require('../middleware/auth');
+const { sendNotificationEmail } = require('../services/contactEmail');
 
 const router = express.Router();
 const sessionCookieName = '__Host-peluso_session';
@@ -47,7 +50,7 @@ function hashSessionToken(token) {
 }
 
 function publicUser(user) {
-  return { id: user.id, name: user.name, email: user.email, role: user.role };
+  return { id: user.id, name: user.name, email: user.email, username: user.username || '', role: user.role };
 }
 
 function validEmail(email) {
@@ -169,6 +172,7 @@ router.get('/me', async (req, res) => {
       tokenHash: hashSessionToken(token),
       expiresAt: { $gt: new Date() },
     });
+
     if (!session) {
       return res.json({ user: null });
     }
@@ -196,6 +200,166 @@ router.get('/me', async (req, res) => {
   } catch (error) {
     console.error('Could not load signed-in user:', error);
     return res.status(500).json({ error: 'Non è stato possibile caricare il tuo account.' });
+  }
+});
+
+router.all('/account-deletion-request', (_req, res) => {
+  res.status(410).json({ error: 'La funzione di cancellazione account è temporaneamente non disponibile.' });
+});
+
+async function requireCustomerPassword(req, res, next) {
+  try {
+    const authenticated = await getAuthenticatedSession(req);
+    if (!authenticated) return res.status(401).json({ error: 'Accedi per continuare.' });
+    if (authenticated.user.role !== 'user') return res.status(403).json({ error: 'Funzione riservata agli account cliente.' });
+    const password = typeof req.body?.currentPassword === 'string' ? req.body.currentPassword : '';
+    if (!password || Buffer.byteLength(password, 'utf8') > 72) {
+      return res.status(400).json({ error: 'Inserisci la password attuale.' });
+    }
+    const userId = authenticated.user._id;
+    const now = new Date();
+    const lock = await AdminSecurityAttempt.findOne({ userId });
+    if (lock?.lockedUntil > now) {
+      res.setHeader('Retry-After', String(Math.ceil((lock.lockedUntil - now) / 1000)));
+      return res.status(429).json({ error: 'Troppi tentativi. Riprova più tardi.' });
+    }
+    if (lock && lock.expiresAt <= now) await AdminSecurityAttempt.deleteOne({ userId, expiresAt: { $lte: now } });
+    const user = await User.findById(userId).select('+passwordHash +pendingCustomerEmail');
+    if (!user || !await bcrypt.compare(password, user.passwordHash)) {
+      let attempt;
+      try {
+        attempt = await AdminSecurityAttempt.findOneAndUpdate(
+          { userId },
+          { $inc: { attempts: 1 }, $set: { expiresAt: new Date(now.getTime() + adminPinLockoutMs) } },
+          { upsert: true, new: true, setDefaultsOnInsert: true },
+        );
+      } catch (error) {
+        if (error.code !== 11000) throw error;
+        attempt = await AdminSecurityAttempt.findOneAndUpdate(
+          { userId },
+          { $inc: { attempts: 1 }, $set: { expiresAt: new Date(now.getTime() + adminPinLockoutMs) } },
+          { new: true },
+        );
+      }
+      if (attempt.attempts >= 5) {
+        const lockedUntil = new Date(now.getTime() + adminPinLockoutMs);
+        await AdminSecurityAttempt.updateOne({ userId }, { $set: { lockedUntil, expiresAt: lockedUntil } });
+        return res.status(429).json({ error: 'Troppi tentativi. Riprova tra 30 minuti.' });
+      }
+      return res.status(401).json({ error: 'La password attuale non è corretta.' });
+    }
+    await AdminSecurityAttempt.deleteOne({ userId });
+    req.customer = user;
+    req.customerSession = authenticated.session;
+    return next();
+  } catch (error) {
+    console.error('Customer security verification failed:', error);
+    return res.status(500).json({ error: 'Non è stato possibile verificare l’account.' });
+  }
+}
+
+router.patch('/account/credentials', requireCustomerPassword, async (req, res) => {
+  const { customer: user, customerSession } = req;
+  const username = typeof req.body?.username === 'string' ? req.body.username.trim().toLowerCase() : null;
+  const newPassword = typeof req.body?.newPassword === 'string' ? req.body.newPassword : null;
+  if ((username === null) === (newPassword === null)) return res.status(400).json({ error: 'Seleziona una sola modifica.' });
+  if (username !== null && !/^[a-z0-9._-]{3,32}$/.test(username)) {
+    return res.status(400).json({ error: 'Il nome utente deve contenere 3–32 lettere, numeri, punti, trattini o underscore.' });
+  }
+  if (newPassword !== null) {
+    const error = signupPasswordError(newPassword);
+    if (error) return res.status(400).json({ error });
+  }
+  try {
+    const adminConfig = getAdminConfig();
+    if (username !== null && adminConfig?.username === username) {
+      return res.status(409).json({ error: 'Questo nome utente è riservato.' });
+    }
+    if (username !== null) user.username = username;
+    if (newPassword !== null) {
+      user.passwordHash = await bcrypt.hash(newPassword, 12);
+      user.pendingCustomerEmail = undefined;
+    }
+    await AuthSession.deleteMany({ userId: user._id, _id: { $ne: customerSession._id } });
+    await user.save();
+    return res.json({ user: publicUser(user) });
+  } catch (error) {
+    if (error.code === 11000) return res.status(409).json({ error: 'Questo nome utente è già utilizzato.' });
+    console.error('Could not update customer credentials:', error);
+    return res.status(500).json({ error: 'Non è stato possibile aggiornare le credenziali.' });
+  }
+});
+
+router.post('/account/email/request', requireCustomerPassword, async (req, res) => {
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  if (!validEmail(email)) return res.status(400).json({ error: 'Inserisci un indirizzo email valido.' });
+  try {
+    const user = req.customer;
+    if (email === user.email) return res.status(409).json({ error: 'È già il tuo indirizzo email.' });
+    if (getAdminConfig()?.email === email || await User.exists({ email })) {
+      return res.status(409).json({ error: 'Questo indirizzo email non è disponibile.' });
+    }
+    const token = crypto.randomBytes(24).toString('base64url');
+    const tokenHash = hashSessionToken(token);
+    const now = new Date();
+    const reserved = await User.findOneAndUpdate(
+      { _id: user._id, $or: [{ pendingCustomerEmail: { $exists: false } }, { 'pendingCustomerEmail.expiresAt': { $lte: now } }] },
+      { $set: { pendingCustomerEmail: { email, tokenHash, expiresAt: new Date(now.getTime() + 10 * 60 * 1000) } } },
+      { new: true, runValidators: true },
+    );
+    if (!reserved) return res.status(429).json({ error: 'Hai già una verifica in corso. Usa il codice ricevuto o attendi 10 minuti.' });
+    try {
+      await sendNotificationEmail({
+        recipient: email,
+        subject: 'Verifica il nuovo indirizzo email',
+        name: user.name,
+        message: `Il tuo codice di verifica è ${token}. Inseriscilo nella pagina account entro 10 minuti. Se non hai richiesto la modifica, ignora questa email.`,
+      });
+    } catch (error) {
+      await User.updateOne({ _id: user._id, 'pendingCustomerEmail.tokenHash': tokenHash }, { $unset: { pendingCustomerEmail: 1 } });
+      throw error;
+    }
+    return res.json({ requested: true });
+  } catch (error) {
+    console.error('Could not request customer email verification:', error);
+    return res.status(503).json({ error: 'Non è stato possibile inviare il codice. Verifica che il servizio email sia disponibile e riprova.' });
+  }
+});
+
+router.post('/account/email/verify', requireCustomerPassword, async (req, res) => {
+  const token = typeof req.body?.token === 'string' ? req.body.token.trim() : '';
+  if (!/^[A-Za-z0-9_-]{32}$/.test(token)) return res.status(400).json({ error: 'Inserisci il codice ricevuto via email.' });
+  try {
+    const pending = req.customer.pendingCustomerEmail;
+    if (!pending || pending.expiresAt <= new Date() || pending.tokenHash !== hashSessionToken(token)) {
+      return res.status(400).json({ error: 'Codice non valido o scaduto.' });
+    }
+    if (getAdminConfig()?.email === pending.email) return res.status(409).json({ error: 'Questo indirizzo email non è disponibile.' });
+    await AuthSession.deleteMany({ userId: req.customer._id, _id: { $ne: req.customerSession._id } });
+    const user = await User.findOneAndUpdate(
+      { _id: req.customer._id, 'pendingCustomerEmail.tokenHash': pending.tokenHash, 'pendingCustomerEmail.expiresAt': { $gt: new Date() } },
+      { $set: { email: pending.email }, $unset: { pendingCustomerEmail: 1 } },
+      { new: true, runValidators: true },
+    );
+    if (!user) return res.status(409).json({ error: 'La verifica è scaduta o è già stata utilizzata.' });
+    return res.json({ user: publicUser(user) });
+  } catch (error) {
+    if (error.code === 11000) return res.status(409).json({ error: 'Questo indirizzo email è già utilizzato.' });
+    console.error('Could not verify customer email:', error);
+    return res.status(500).json({ error: 'Non è stato possibile aggiornare l’indirizzo email.' });
+  }
+});
+
+router.delete('/account', requireCustomerPassword, async (req, res) => {
+  try {
+    await AuthSession.deleteMany({ userId: req.customer._id });
+    const result = await User.deleteOne({ _id: req.customer._id, role: 'user', passwordHash: req.customer.passwordHash });
+    if (!result.deletedCount) return res.status(409).json({ error: 'L’account è cambiato. Accedi di nuovo e riprova.' });
+    clearSessionCookie(res);
+    return res.json({ deleted: true });
+  } catch (error) {
+    console.error('Could not delete customer account:', error);
+    return res.status(500).json({ error: 'Non è stato possibile eliminare l’account. Riprova.' });
   }
 });
 

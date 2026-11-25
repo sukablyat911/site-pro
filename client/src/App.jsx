@@ -32,6 +32,9 @@ import {
   Maximize2,
   Minimize2,
   MapPin,
+  Menu,
+  PanelLeftOpen,
+  SlidersHorizontal,
   Pencil,
   Plus,
   Quote,
@@ -48,6 +51,7 @@ import {
   TrendingUp,
   UsersRound,
   UserRound,
+  UserPlus,
   Wrench,
   WifiOff,
   X,
@@ -55,6 +59,10 @@ import {
 } from 'lucide-react';
 import { Cell, Pie, PieChart } from 'recharts';
 import { loadRouteStyles } from './routeStyles';
+import cookiePolicy from '../../legal/COOKIE-POLICY.md?raw';
+import legalNotes from '../../legal/NOTE-LEGALI.md?raw';
+import privacyPolicy from '../../legal/PRIVACY-POLICY.md?raw';
+import termsConditions from '../../legal/TERMINI-CONDIZIONI.md?raw';
 
 const euro = new Intl.NumberFormat('it-IT', {
   style: 'currency',
@@ -77,6 +85,70 @@ const kilometer = new Intl.NumberFormat('it-IT');
 const CATALOG_PAGE_SIZE = 10;
 const VEHICLE_VAT_MODES = ['inclusive', 'exclusive', 'not-applied'];
 const COOKIE_CONSENT_STORAGE_KEY = 'pelusogroup-cookie-consent';
+const LEGAL_DOCUMENTS = {
+  '/privacy': { title: 'Informativa privacy', eyebrow: 'PRIVACY E DATI PERSONALI', content: privacyPolicy },
+  '/termini-condizioni': { title: 'Termini e condizioni', eyebrow: 'REGOLE DEL SERVIZIO', content: termsConditions },
+  '/cookie-policy': { title: 'Cookie Policy', eyebrow: 'COOKIE E PREFERENZE', content: cookiePolicy },
+  '/note-legali': { title: 'Note legali', eyebrow: 'INFORMAZIONI SOCIETARIE', content: legalNotes },
+};
+const HOME_FAQ_ITEMS = [
+  {
+    question: 'Come trovo l’auto più adatta alle mie esigenze?',
+    answer: 'Nel catalogo puoi esplorare le auto in vendita e a noleggio e usare i filtri per restringere la ricerca. Apri la scheda di una vettura per consultare i dettagli e inviare una richiesta.',
+  },
+  {
+    question: 'Dove posso consultare caratteristiche e prezzo di un’auto?',
+    answer: 'Apri la scheda della vettura dal catalogo: trovi immagini, chilometraggio, caratteristiche principali e prezzo aggiornato, oltre alle opzioni per chiedere informazioni o fissare una visita.',
+  },
+  {
+    question: 'Inviare una richiesta di acquisto mi obbliga a comprare l’auto?',
+    answer: 'No. La richiesta serve per ricevere informazioni e avviare un contatto con il team. Prezzo, disponibilità e condizioni vengono verificati e concordati prima di procedere.',
+  },
+  {
+    question: 'Posso fissare una visita per vedere un’auto?',
+    answer: 'Sì. Dalla scheda dell’auto puoi inviare una richiesta di visita indicando data e orario preferiti. La visita si considera confermata solo dopo la risposta del team.',
+  },
+  {
+    question: 'Come funziona una richiesta di noleggio?',
+    answer: 'Apri la scheda dell’auto, scegli le date di ritiro e riconsegna nel calendario e invia la richiesta. Non blocca l’auto né le date: il team verifica la disponibilità e ti conferma tariffa e condizioni.',
+  },
+  {
+    question: 'È possibile chiedere un finanziamento?',
+    answer: 'Le eventuali soluzioni dipendono dalla vettura, dalla disponibilità e dall’approvazione dell’ente finanziatore. Contattaci per un preventivo personalizzato.',
+  },
+  {
+    question: 'Come posso proporre la mia auto?',
+    answer: 'Invia i dati e le foto dalla pagina “Vendi auto”. La proposta è privata e non viene pubblicata automaticamente nel catalogo.',
+  },
+  {
+    question: 'La valutazione della mia auto è gratuita?',
+    answer: 'Sì. La valutazione è gratuita e viene effettuata in meno di 24 ore. Se si raggiunge un accordo, possiamo concordare anche il ritiro.',
+  },
+  {
+    question: 'È possibile organizzare il ritiro o la consegna dell’auto?',
+    answer: 'Possiamo concordare il ritiro dell’auto che vendi o la consegna di quella acquistata. Zona, tempi, disponibilità ed eventuali costi dipendono dal veicolo.',
+  },
+  {
+    question: 'Ci sono costi oltre al prezzo dell’auto?',
+    answer: 'Eventuali costi di passaggio di proprietà, servizi aggiuntivi e condizioni finali vengono comunicati prima dell’acquisto.',
+  },
+];
+const ADMIN_SECURITY_EVENT_LABELS = {
+  ip_rule_added: 'Regola IP aggiunta',
+  ip_rule_removed: 'Regola IP rimossa',
+  traffic_limits_updated: 'Limiti aggiornati',
+  password_changed: 'Password modificata',
+  pin_changed: 'PIN modificato',
+  email_verification_requested: 'Verifica email richiesta',
+  email_updated: 'Email principale aggiornata',
+  notification_email_added: 'Email notifiche aggiunta',
+  notification_email_removed: 'Email notifiche rimossa',
+  ip_blocked: 'IP bloccato',
+  ip_throttled: 'Richieste IP limitate',
+  traffic_limit_reached: 'Soglia di traffico raggiunta',
+  admin_account_created: 'Account amministratore creato',
+  admin_account_removed: 'Account amministratore rimosso',
+};
 const CATALOG_FILTERS_STORAGE_KEY = 'pelusogroup-catalog-filters';
 const ADMIN_PIN_CHALLENGE_LIFETIME_MS = 60 * 1000;
 const DEFAULT_CATALOG_FILTERS = {
@@ -84,6 +156,11 @@ const DEFAULT_CATALOG_FILTERS = {
   makeFilter: 'all',
   bodyTypeFilter: 'all',
   yearFilter: 'all',
+  modelFilter: '',
+  colorFilter: '',
+  doorsFilter: '',
+  drivetrainFilter: '',
+  noviceDriverFilter: '',
   fuelFilter: '',
   transmissionFilter: '',
   maxKm: '',
@@ -294,12 +371,14 @@ const VehicleDiscountPrice = memo(function VehicleDiscountPrice({ vehicle, price
 const GERARDO_PHONE_NUMBER = '393473368745';
 const DEFAULT_SITE_SETTINGS = {
   businessName: 'PelusoGroup',
+  siteTitle: 'PelusoGroup — La tua prossima auto',
   contactEmail: '',
   contactPhone: '',
   vatNumber: '04195760618',
   address: 'Via delle Monache, 17, 81030 Cellole (CE), Italia',
   timezone: 'Europe/Rome',
   logoUrl: '/images/logo.png',
+  faviconUrl: '/favicon.svg',
   heroImageUrl: '/images/mercedes-amg-c63-hero.jpg',
   staffContacts: [
     { id: 'luigi', name: 'Luigi Peluso', role: 'Vendite e consulenza', email: 'luigi_peluso26@proton.me', phone: '+39 320 456 9082', whatsapp: '393204569082' },
@@ -355,6 +434,11 @@ function readCatalogFilters() {
       makeFilter: typeof storedFilters.makeFilter === 'string' ? storedFilters.makeFilter : 'all',
       bodyTypeFilter: VEHICLE_BODY_TYPES.includes(storedFilters.bodyTypeFilter) ? storedFilters.bodyTypeFilter : 'all',
       yearFilter: typeof storedFilters.yearFilter === 'string' ? storedFilters.yearFilter : 'all',
+      modelFilter: typeof storedFilters.modelFilter === 'string' ? storedFilters.modelFilter : '',
+      colorFilter: typeof storedFilters.colorFilter === 'string' ? storedFilters.colorFilter : '',
+      doorsFilter: ['1', '2', '3', '4', '5', '6', '7', '8'].includes(storedFilters.doorsFilter) ? storedFilters.doorsFilter : '',
+      drivetrainFilter: typeof storedFilters.drivetrainFilter === 'string' ? storedFilters.drivetrainFilter : '',
+      noviceDriverFilter: ['', 'yes', 'no', 'unknown'].includes(storedFilters.noviceDriverFilter) ? storedFilters.noviceDriverFilter : '',
       fuelFilter: typeof storedFilters.fuelFilter === 'string' ? storedFilters.fuelFilter : '',
       transmissionFilter: typeof storedFilters.transmissionFilter === 'string' ? storedFilters.transmissionFilter : '',
       maxKm: ['50000', '100000', '150000'].includes(storedFilters.maxKm) ? storedFilters.maxKm : '',
@@ -676,6 +760,8 @@ const SiteIcon = memo(function SiteIcon({ name, className = '' }) {
     acceleration: <><path d="M4 17h4l3-5 3 3 6-9" /><path d="M15 6h5v5" /><path d="M4 21h16" /></>,
     chart: <><path d="M4 19V5M4 19h16" /><path d="m7 15 3-4 3 2 5-7" /><path d="M15 6h3v3" /></>,
     settings: <><path d="M4 3v18M12 3v18M20 3v18" /><circle cx="4" cy="8" r="2" /><circle cx="12" cy="15" r="2" /><circle cx="20" cy="10" r="2" /></>,
+    legal: <><path d="M6 3h8l4 4v14H6z" /><path d="M14 3v5h5M9 12h6M9 16h6" /><path d="M9 8h1" /></>,
+    audit: <><path d="M5 4h14v16H5z" /><path d="M8 8h8M8 12h8M8 16h5" /><path d="m16 16 2 2 3-3" /></>,
     home: <><path d="m3.5 10 8.5-7 8.5 7v10.5H14v-6h-4v6H3.5V10Z" /><path d="M8 7.5h.01" /></>,
     cart: <><path d="M3 4h2l2.2 10.1a2 2 0 0 0 2 1.6h8.5a2 2 0 0 0 1.9-1.4L21 8H6" /><circle cx="10" cy="20" r="1.2" /><circle cx="18" cy="20" r="1.2" /></>,
     service: <><path d="M14 6a5 5 0 0 0-6.7 6.7L3 17l4 4 4.3-4.3A5 5 0 0 0 18 10l-3 3-4-4 3-3Z" /><path d="m5 19 2-2" /></>,
@@ -1104,6 +1190,252 @@ async function requestJson(url, options = {}) {
     throw new Error(data.error || 'Si è verificato un problema. Riprova.');
   }
   return data;
+}
+
+async function downloadAdminReport(reportType, filters) {
+  const query = new URLSearchParams({ format: filters.format });
+  ['from', 'to', 'eventType', 'ipAddress', 'search'].forEach((field) => {
+    if (filters[field]) query.set(field, filters[field]);
+  });
+  let response;
+  try {
+    response = await fetch(`/api/admin/reports/${reportType}?${query.toString()}`, { credentials: 'include' });
+  } catch {
+    throw new Error('Connessione al server non riuscita. Verifica la connessione e riprova.');
+  }
+  if (!response.ok) {
+    let message = 'Non è stato possibile generare il report.';
+    try {
+      const data = await response.json();
+      message = data.error || message;
+    } catch {
+      // The server may return a non-JSON error for a failed download.
+    }
+    throw new Error(message);
+  }
+  const blob = await response.blob();
+  const disposition = response.headers.get('content-disposition') || '';
+  const filename = disposition.match(/filename="([^"]+)"/i)?.[1] || `pelusogroup-${reportType}.${filters.format}`;
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function AdminReportExportButton({ reportType, label = 'Esporta report' }) {
+  const isSecurityReport = reportType === 'security-audit';
+  const today = new Date().toISOString().slice(0, 10);
+  const defaultFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const rootRef = useRef(null);
+  const [filters, setFilters] = useState({ format: 'pdf', from: defaultFrom, to: today, eventType: '', ipAddress: '', search: '' });
+
+  useEffect(() => {
+    if (!open) return undefined;
+    function closeOnOutsideInteraction(event) {
+      if (!rootRef.current?.contains(event.target)) setOpen(false);
+    }
+    function closeOnEscape(event) {
+      if (event.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('pointerdown', closeOnOutsideInteraction);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideInteraction);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [open]);
+
+  async function submit(event) {
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      await downloadAdminReport(reportType, filters);
+      setOpen(false);
+    } catch (exportError) {
+      setError(exportError.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div ref={rootRef} className="admin-report-export">
+      <button className="admin-utility-secondary-button" type="button" onClick={() => { setOpen((current) => !current); setError(''); }}>
+        <Download size={15} aria-hidden="true" /> {label}
+      </button>
+      {open && (
+        <form className="admin-report-export-panel" onSubmit={submit}>
+          <strong>Configura esportazione</strong>
+          <label>Formato
+            <SelectField className="admin-report-export-select" value={filters.format} onChange={(event) => setFilters((current) => ({ ...current, format: event.target.value }))} ariaLabel="Formato esportazione">
+              <option value="pdf">PDF professionale</option>
+              <option value="xlsx">Excel (.xlsx)</option>
+              <option value="json">JSON tecnico</option>
+            </SelectField>
+          </label>
+          <div className="admin-report-export-date-grid">
+            <label>Dal<input type="date" value={filters.from} max={filters.to || today} onChange={(event) => setFilters((current) => ({ ...current, from: event.target.value }))} required /></label>
+            <label>Al<input type="date" value={filters.to} min={filters.from} max={today} onChange={(event) => setFilters((current) => ({ ...current, to: event.target.value }))} required /></label>
+          </div>
+          {isSecurityReport && <label>Tipo evento
+            <SelectField className="admin-report-export-select" value={filters.eventType} onChange={(event) => setFilters((current) => ({ ...current, eventType: event.target.value }))} ariaLabel="Tipo evento">
+              <option value="">Tutti gli eventi</option>
+              {Object.entries(ADMIN_SECURITY_EVENT_LABELS).map(([value, eventLabel]) => <option value={value} key={value}>{eventLabel}</option>)}
+            </SelectField>
+          </label>}
+          {isSecurityReport && <label>Indirizzo IP<input value={filters.ipAddress} maxLength="45" placeholder="Facoltativo" onChange={(event) => setFilters((current) => ({ ...current, ipAddress: event.target.value }))} /></label>}
+          <label>Ricerca nei dettagli<input value={filters.search} maxLength="120" placeholder="Facoltativa" onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} /></label>
+          {error && <p className="admin-utility-message is-error" role="alert">{error}</p>}
+          <button className="admin-utility-primary-button" type="submit" disabled={busy}>{busy ? 'Generazione…' : 'Scarica report'}</button>
+        </form>
+      )}
+    </div>
+  );
+}
+
+function AdminLegalDocumentDownloadButton({ document: legalDocument }) {
+  const [open, setOpen] = useState(false);
+  const [format, setFormat] = useState('pdf');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const rootRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    function closeOnOutsideInteraction(event) {
+      if (!rootRef.current?.contains(event.target)) setOpen(false);
+    }
+    function closeOnEscape(event) {
+      if (event.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('pointerdown', closeOnOutsideInteraction);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideInteraction);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [open]);
+
+  async function download(event) {
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      const response = await fetch(`/api/admin/reports/legal-documents/${encodeURIComponent(legalDocument.slug)}?format=${format}`, {
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        let message = 'Non è stato possibile scaricare il documento.';
+        try {
+          const data = await response.json();
+          message = data.error || message;
+        } catch {
+          // Keep the user-facing fallback for non-JSON download errors.
+        }
+        throw new Error(message);
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get('content-disposition') || '';
+      const filename = disposition.match(/filename="([^"]+)"/i)?.[1] || `pelusogroup-${legalDocument.slug}.${format}`;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+      setOpen(false);
+    } catch (downloadError) {
+      setError(downloadError.message || 'Download non riuscito.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div ref={rootRef} className="admin-report-export admin-legal-document-download">
+      <button className="admin-utility-secondary-button" type="button" onClick={() => { setOpen((current) => !current); setError(''); }}>
+        <Download size={15} aria-hidden="true" /> Scarica documento
+      </button>
+      {open && (
+        <form className="admin-report-export-panel" onSubmit={download}>
+          <strong>Formato documento</strong>
+          <label>Formato
+            <SelectField className="admin-report-export-select" value={format} onChange={(event) => setFormat(event.target.value)} ariaLabel={`Formato ${legalDocument.title}`}>
+              <option value="pdf">PDF professionale</option>
+              <option value="xlsx">Excel (.xlsx)</option>
+              <option value="json">JSON tecnico</option>
+            </SelectField>
+          </label>
+          {error && <p className="admin-utility-message is-error" role="alert">{error}</p>}
+          <button className="admin-utility-primary-button" type="submit" disabled={busy}>{busy ? 'Preparazione…' : 'Scarica documento'}</button>
+        </form>
+      )}
+    </div>
+  );
+}
+
+function VehicleDownloadButton({ vehicleId }) {
+  const [format, setFormat] = useState('pdf');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function download(event) {
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      const response = await fetch(`/api/vehicles/export/${encodeURIComponent(vehicleId)}?format=${format}`, { credentials: 'include' });
+      if (!response.ok) {
+        let message = 'Non è stato possibile scaricare la scheda auto.';
+        try {
+          const data = await response.json();
+          message = data.error || message;
+        } catch {
+          // Keep the user-facing fallback for non-JSON download errors.
+        }
+        throw new Error(message);
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get('content-disposition') || '';
+      const filename = disposition.match(/filename="([^"]+)"/i)?.[1] || `scheda-auto.${format}`;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (downloadError) {
+      setError(downloadError.message || 'Download non riuscito.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form className="vehicle-detail-download" onSubmit={download}>
+      <SelectField className="vehicle-detail-format-select" value={format} ariaLabel="Formato scheda auto" onChange={(event) => setFormat(event.target.value)}>
+        <option value="pdf">PDF</option>
+        <option value="xlsx">Excel</option>
+        <option value="json">JSON</option>
+      </SelectField>
+      <button className="button button-outline" type="submit" disabled={busy}>
+        {busy ? 'Preparazione…' : 'Scarica scheda auto'}
+      </button>
+      {error && <span className="form-error" role="alert">{error}</span>}
+    </form>
+  );
 }
 
 function getPasswordRequirements(password) {
@@ -1563,7 +1895,11 @@ function AdminSectionNavigation({ active, pendingPurchases, pendingPriceOffers =
     { id: 'analytics', label: 'Statistiche', icon: 'chart', path: '/admin/analytics' },
     { id: 'messages', label: 'Messaggi e vendite', icon: 'mail', path: '/admin/messages' },
     { id: 'settings', label: 'Impostazioni', icon: 'settings', path: '/admin/settings' },
+    { id: 'legal', label: 'Documenti legali', icon: 'legal', path: '/admin/legal' },
     { id: 'security', label: 'Sicurezza', icon: 'warranty', path: '/admin/security' },
+    { id: 'audit', label: 'Audit sicurezza recente', icon: 'audit', path: '/admin/security/audit' },
+    { id: 'admins', label: 'Account amministratori', icon: 'people', path: '/admin/security/admins' },
+    { id: 'logs', label: 'Attività amministrative', icon: 'audit', path: '/admin/logs' },
   ];
   return (
     <aside className="admin-sidebar" aria-label="Navigazione amministratore">
@@ -2258,10 +2594,11 @@ function AdminSettingsPanel({ onSettingsSaved }) {
       const body = new FormData();
       body.append('image', image);
       const { url } = await requestJson(`/api/admin/settings/assets/${kind}`, { method: 'POST', body });
-      const next = { ...settings, [kind === 'logo' ? 'logoUrl' : 'heroImageUrl']: url };
+      const field = kind === 'logo' ? 'logoUrl' : kind === 'favicon' ? 'faviconUrl' : 'heroImageUrl';
+      const next = { ...settings, [field]: url };
       setSettings(next);
-      onSettingsSaved({ [kind === 'logo' ? 'logoUrl' : 'heroImageUrl']: url });
-      setNotice(kind === 'logo' ? 'Logo aggiornato.' : 'Immagine hero aggiornata.');
+      onSettingsSaved({ [field]: url });
+      setNotice(kind === 'logo' ? 'Logo aggiornato.' : kind === 'favicon' ? 'Favicon aggiornato.' : 'Immagine hero aggiornata.');
     } catch (uploadError) {
       setError(uploadError.message);
     } finally {
@@ -2381,6 +2718,9 @@ function AdminSettingsPanel({ onSettingsSaved }) {
           <label>Nome attività
             <input name="businessName" value={settings.businessName || ''} onChange={updateField} maxLength="120" required />
           </label>
+          <label className="is-wide">Titolo pagina principale
+            <input name="siteTitle" value={settings.siteTitle || ''} onChange={updateField} maxLength="160" required />
+          </label>
           <label>Email di contatto
             <input name="contactEmail" type="email" value={settings.contactEmail || ''} onChange={updateField} maxLength="254" />
           </label>
@@ -2396,7 +2736,7 @@ function AdminSettingsPanel({ onSettingsSaved }) {
         </div>
         <p className="admin-utility-help">Email e telefono generali sono visibili nei contatti pubblici e nel footer. L’email riceve i moduli del sito; l’indirizzo configurato nel server viene usato solo se questo campo è vuoto.</p>
         <div className="admin-utility-section-actions">
-          <button className="admin-utility-primary-button" type="button" disabled={Boolean(saving)} onClick={(event) => saveSettings(event, 'business', ['businessName', 'contactEmail', 'contactPhone', 'vatNumber', 'address'])}>
+          <button className="admin-utility-primary-button" type="button" disabled={Boolean(saving)} onClick={(event) => saveSettings(event, 'business', ['businessName', 'siteTitle', 'contactEmail', 'contactPhone', 'vatNumber', 'address'])}>
             <Save size={16} aria-hidden="true" /> {saving === 'business' ? 'Salvataggio…' : 'Salva sezione'}
           </button>
         </div>
@@ -2444,13 +2784,19 @@ function AdminSettingsPanel({ onSettingsSaved }) {
             <small>{uploadingAsset === 'logo' ? 'Caricamento…' : 'JPG, PNG o WebP · massimo 8 MB'}</small>
           </label>
           <label className="admin-site-asset">
+            <span>Favicon</span>
+            <img src={settings.faviconUrl || DEFAULT_SITE_SETTINGS.faviconUrl} alt="Anteprima favicon" />
+            <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => uploadSiteImage('favicon', event)} />
+            <small>{uploadingAsset === 'favicon' ? 'Caricamento…' : 'Icona JPG, PNG o WebP · massimo 8 MB'}</small>
+          </label>
+          <label className="admin-site-asset">
             <span>Immagine hero home</span>
             <img src={settings.heroImageUrl || DEFAULT_SITE_SETTINGS.heroImageUrl} alt="Anteprima immagine principale" />
             <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => uploadSiteImage('hero', event)} />
             <small>{uploadingAsset === 'hero' ? 'Caricamento…' : 'JPG, PNG o WebP · massimo 8 MB'}</small>
           </label>
         </div>
-        <p className="admin-utility-help">Le immagini vengono salvate appena termina il caricamento.</p>
+        <p className="admin-utility-help">Le immagini e il favicon vengono salvati appena termina il caricamento. Il titolo della pagina principale si modifica nel profilo attività.</p>
       </section>
 
       <section className="admin-dashboard-panel admin-utility-section" aria-labelledby="admin-settings-contacts-title">
@@ -2728,6 +3074,108 @@ function AdminSettingsPanel({ onSettingsSaved }) {
   );
 }
 
+function AdminLegalDocumentsPage() {
+  const [legalDocuments, setLegalDocuments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState('');
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    requestJson('/api/admin/legal-documents')
+      .then(({ documents }) => {
+        if (active) setLegalDocuments(Array.isArray(documents) ? documents : []);
+      })
+      .catch((loadError) => {
+        if (active) setError(loadError.message);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
+  }, []);
+
+  async function saveDocument(document) {
+    setSaving(document.slug);
+    setError('');
+    setNotice('');
+    try {
+      const { document: savedDocument } = await requestJson(`/api/admin/legal-documents/${document.slug}`, {
+        method: 'PUT',
+        body: JSON.stringify({ content: document.content }),
+      });
+      setLegalDocuments((current) => current.map((entry) => (
+        entry.slug === savedDocument.slug ? savedDocument : entry
+      )));
+      setNotice(`${document.title} salvato sul server.`);
+    } catch (saveError) {
+      setError(saveError.message);
+    } finally {
+      setSaving('');
+    }
+  }
+
+  return (
+    <AdminMotionSection className="admin-page admin-legal-page section-wrap" labelledBy="admin-legal-title">
+      <div className="admin-heading admin-heading-prominent">
+        <div>
+          <p className="eyebrow">AREA AMMINISTRATORE · CONTENUTI PUBBLICI</p>
+          <h1 id="admin-legal-title">Documenti <em>legali.</em></h1>
+          <p>Modifica Privacy Policy, Termini e condizioni, Cookie Policy e Note legali direttamente dalla dashboard.</p>
+        </div>
+      </div>
+      {loading ? (
+        <p className="admin-utility-loading" role="status">Caricamento documenti…</p>
+      ) : (
+        <section className="admin-dashboard-panel admin-utility-section admin-legal-documents" aria-labelledby="admin-legal-content-title">
+          <div className="admin-dashboard-panel-heading">
+            <h2 id="admin-legal-content-title"><ShieldCheck size={18} aria-hidden="true" /> Contenuti pubblicati</h2>
+            <span className="admin-utility-section-note">Markdown</span>
+          </div>
+          <p className="admin-utility-help">Le modifiche diventano pubbliche dopo il salvataggio. Il contenuto viene mostrato nelle rispettive pagine legali del sito.</p>
+          <div className="admin-legal-document-list">
+            {legalDocuments.map((document) => (
+              <article className="admin-legal-document-card" key={document.slug}>
+                <div className="admin-legal-document-heading">
+                  <div>
+                    <h3>{document.title}</h3>
+                    <span>/{document.slug}</span>
+                  </div>
+                  {document.updatedAt && <small>Ultimo aggiornamento: {new Date(document.updatedAt).toLocaleString('it-IT')}</small>}
+                </div>
+                <label className="admin-legal-document-editor">
+                  <span>Contenuto Markdown</span>
+                  <textarea
+                    value={document.content}
+                    maxLength="100000"
+                    rows="18"
+                    onChange={(event) => {
+                      const content = event.target.value;
+                      setLegalDocuments((current) => current.map((entry) => (
+                        entry.slug === document.slug ? { ...entry, content } : entry
+                      )));
+                      setError('');
+                      setNotice('');
+                    }}
+                  />
+                </label>
+                <div className="admin-utility-section-actions">
+                  <AdminLegalDocumentDownloadButton document={document} />
+                  <button className="admin-utility-primary-button" type="button" disabled={Boolean(saving)} onClick={() => saveDocument(document)}>
+                    <Save size={16} aria-hidden="true" /> {saving === document.slug ? 'Salvataggio…' : 'Salva documento'}
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+      {(error || notice) && <p className={`admin-utility-message${error ? ' is-error' : ''}`} role={error ? 'alert' : 'status'}>{error || notice}</p>}
+    </AdminMotionSection>
+  );
+}
+
 function AdminSecurityPanel({ onUserUpdated, businessName = DEFAULT_SITE_SETTINGS.businessName }) {
   const [security, setSecurity] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -2988,7 +3436,6 @@ function AdminSecurityPanel({ onUserUpdated, businessName = DEFAULT_SITE_SETTING
 
       <AdminCredentialManagement security={security} />
       <AdminEmailManagement security={security} onUserUpdated={onUserUpdated} onChanged={refreshSecurity} />
-      <AdminAccountsManagement security={security} onChanged={refreshSecurity} />
       <AdminTrafficManagement />
 
       <section className="admin-dashboard-panel admin-utility-section" aria-labelledby="admin-security-passkeys-title">
@@ -3340,6 +3787,62 @@ function AdminEmailManagement({ security, onUserUpdated, onChanged }) {
   );
 }
 
+function AdminAccountsPage() {
+  const [security, setSecurity] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  async function refreshSecurity() {
+    const { security: loadedSecurity } = await requestJson('/api/admin/security');
+    setSecurity(loadedSecurity);
+  }
+
+  useEffect(() => {
+    let active = true;
+    requestJson('/api/admin/security')
+      .then(({ security: loadedSecurity }) => {
+        if (active) setSecurity(loadedSecurity);
+      })
+      .catch((loadError) => {
+        if (active) setError(loadError.message);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
+  }, []);
+
+  return (
+    <AdminMotionSection className="admin-page admin-accounts-page section-wrap" labelledBy="admin-accounts-title">
+      <div className="admin-heading admin-heading-prominent">
+        <div>
+          <p className="eyebrow">AREA AMMINISTRATORE · ACCESSI</p>
+          <h1 id="admin-accounts-title">Account <em>amministratori.</em></h1>
+          <p>Aggiungi amministratori, verifica i loro indirizzi email e revoca gli accessi non più necessari.</p>
+        </div>
+      </div>
+      {loading ? (
+        <p className="admin-utility-loading" role="status">Caricamento account amministratori…</p>
+      ) : error ? (
+        <p className="admin-utility-message is-error" role="alert">{error}</p>
+      ) : security ? (
+        security.isSuperAdmin ? (
+          <AdminAccountsManagement security={security} onChanged={refreshSecurity} />
+        ) : (
+          <section className="admin-dashboard-panel admin-utility-section" aria-labelledby="admin-accounts-permission-title">
+            <div className="admin-dashboard-panel-heading">
+              <h2 id="admin-accounts-permission-title"><SiteIcon name="warranty" /> Gestione non disponibile</h2>
+            </div>
+            <p className="admin-utility-message" role="status">Solo il Super Admin <strong>luigipeluso</strong> può aggiungere o rimuovere amministratori.</p>
+          </section>
+        )
+      ) : (
+        <p className="admin-utility-message is-error" role="alert">Gli account amministratori non sono disponibili.</p>
+      )}
+    </AdminMotionSection>
+  );
+}
+
 function AdminAccountsManagement({ security, onChanged }) {
   const [form, setForm] = useState({
     name: '',
@@ -3636,21 +4139,6 @@ function AdminTrafficManagement() {
     }
     return `${new Intl.NumberFormat('it-IT', { maximumFractionDigits: 1 }).format(amount)} ${units[unit]}`;
   };
-  const eventLabels = {
-    ip_rule_added: 'Regola IP aggiunta',
-    ip_rule_removed: 'Regola IP rimossa',
-    traffic_limits_updated: 'Limiti aggiornati',
-    password_changed: 'Password modificata',
-    pin_changed: 'PIN modificato',
-    email_verification_requested: 'Verifica email richiesta',
-    email_updated: 'Email principale aggiornata',
-    notification_email_added: 'Email notifiche aggiunta',
-    notification_email_removed: 'Email notifiche rimossa',
-    ip_blocked: 'IP bloccato',
-    ip_throttled: 'Richieste IP limitate',
-    traffic_limit_reached: 'Soglia di traffico raggiunta',
-  };
-
   return (
     <section className="admin-dashboard-panel admin-utility-section" aria-labelledby="admin-security-traffic-title">
       <div className="admin-dashboard-panel-heading">
@@ -3742,16 +4230,124 @@ function AdminTrafficManagement() {
         }) : <p className="admin-utility-empty">Nessuna regola IP configurata.</p>}
       </div>
 
-      <div className="admin-security-event-list">
-        <h3>Audit sicurezza recente</h3>
-        {controls.events.length ? controls.events.map((event) => (
-          <article key={event.id}>
-            <div><strong>{eventLabels[event.type] || 'Evento sicurezza'}</strong><small>{event.details}{event.ipAddress ? ` · IP ${event.ipAddress}` : ''}</small></div>
-            <time dateTime={event.createdAt}>{new Date(event.createdAt).toLocaleString('it-IT')}</time>
-          </article>
-        )) : <p className="admin-utility-empty">Nessun evento di sicurezza registrato.</p>}
-      </div>
     </section>
+  );
+}
+
+function AdminSecurityAuditPage() {
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    requestJson('/api/admin/security/controls')
+      .then(({ controls }) => {
+        if (active) setEvents(Array.isArray(controls?.events) ? controls.events : []);
+      })
+      .catch((loadError) => {
+        if (active) setError(loadError.message);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
+  }, []);
+
+  return (
+    <AdminMotionSection className="admin-page admin-security-audit-page section-wrap" labelledBy="admin-security-audit-title">
+      <div className="admin-heading admin-heading-prominent">
+        <div>
+          <p className="eyebrow">AREA AMMINISTRATORE · SICUREZZA</p>
+          <h1 id="admin-security-audit-title">Audit sicurezza <em>recente.</em></h1>
+          <p>Consulta gli ultimi eventi registrati dal sistema di protezione e dalle modifiche ai controlli admin.</p>
+        </div>
+        <div className="admin-heading-actions">
+          <AdminReportExportButton reportType="security-audit" />
+        </div>
+      </div>
+      <section className="admin-dashboard-panel admin-utility-section admin-security-event-list" aria-labelledby="admin-security-audit-list-title">
+        <div className="admin-dashboard-panel-heading">
+          <h2 id="admin-security-audit-list-title"><SiteIcon name="audit" /> Eventi registrati</h2>
+          <span className="admin-utility-section-note">Ultimi 30 eventi</span>
+        </div>
+        {loading ? (
+          <p className="admin-utility-loading" role="status">Caricamento audit…</p>
+        ) : error ? (
+          <p className="admin-utility-message is-error" role="alert">{error}</p>
+        ) : events.length ? (
+          events.map((event) => (
+            <article key={event.id}>
+              <div>
+                <strong>{ADMIN_SECURITY_EVENT_LABELS[event.type] || 'Evento sicurezza'}</strong>
+                <small>{event.details}{event.ipAddress ? ` · IP ${event.ipAddress}` : ''}</small>
+              </div>
+              <time dateTime={event.createdAt}>{new Date(event.createdAt).toLocaleString('it-IT')}</time>
+            </article>
+          ))
+        ) : <p className="admin-utility-empty">Nessun evento di sicurezza registrato.</p>}
+      </section>
+    </AdminMotionSection>
+  );
+}
+
+function AdminActivityLogsPage() {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    requestJson('/api/admin/activity-logs')
+      .then(({ logs: activityLogs }) => {
+        if (active) setLogs(Array.isArray(activityLogs) ? activityLogs : []);
+      })
+      .catch((loadError) => {
+        if (active) setError(loadError.message);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
+  }, []);
+
+  return (
+    <AdminMotionSection className="admin-page admin-logs-page section-wrap" labelledBy="admin-activity-logs-title">
+      <div className="admin-heading admin-heading-prominent">
+        <div>
+          <p className="eyebrow">AREA AMMINISTRATORE · ATTIVITÀ</p>
+          <h1 id="admin-activity-logs-title">Attività <em>amministrative.</em></h1>
+          <p>Registro delle operazioni effettuate dagli amministratori su contenuti e richieste.</p>
+        </div>
+        <div className="admin-heading-actions">
+          <AdminReportExportButton reportType="logs" />
+        </div>
+      </div>
+      <section className="admin-dashboard-panel admin-utility-section admin-security-event-list" aria-labelledby="admin-activity-logs-list-title">
+        <div className="admin-dashboard-panel-heading">
+          <h2 id="admin-activity-logs-list-title"><SiteIcon name="audit" /> Attività registrate</h2>
+          <span className="admin-utility-section-note">Ultime 100 attività</span>
+        </div>
+        {loading ? (
+          <p className="admin-utility-loading" role="status">Caricamento attività…</p>
+        ) : error ? (
+          <p className="admin-utility-message is-error" role="alert">{error}</p>
+        ) : logs.length ? (
+          logs.map((log) => (
+            <article key={log.id}>
+              <div>
+                <strong>{log.resource} · {({ created: 'Creato', updated: 'Modificato', deleted: 'Eliminato' })[log.action] || 'Operazione'}</strong>
+                <small>
+                  {log.actorName} · {log.outcome === 'success' ? 'Completata' : `Non riuscita (HTTP ${log.statusCode})`}
+                  {log.targetId ? ` · Riferimento ${log.targetId}` : ''}
+                </small>
+              </div>
+              <time dateTime={log.createdAt}>{new Date(log.createdAt).toLocaleString('it-IT')}</time>
+            </article>
+          ))
+        ) : <p className="admin-utility-empty">Nessuna attività amministrativa registrata.</p>}
+      </section>
+    </AdminMotionSection>
   );
 }
 
@@ -5175,6 +5771,219 @@ const VehiclePhotoIndicators = memo(function VehiclePhotoIndicators({ imageCount
   );
 });
 
+function CatalogVehicleCard({ vehicle, onOpen, onSelect, isSelected, isLoggedIn, purchaseRequestCount = 0, onDiscountExpire }) {
+  const power = getVehiclePowerDetails(vehicle);
+  const engine = vehicle.engine || (vehicle.engineDisplacementCc
+    ? `${kilometer.format(vehicle.engineDisplacementCc)} cm³`
+    : '—');
+  const formattedPower = power.cvValue
+    ? `${power.cv} CV${power.kw ? ` · ${power.kw} kW` : ''}`
+    : power.cv || '—';
+
+  return (
+    <article className="vehicle-card">
+      <CatalogVehicleImageGallery
+        vehicle={vehicle}
+        onOpen={onOpen}
+        linkLabel={`Dettagli ${vehicle.make} ${vehicle.model}, ${kilometer.format(vehicle.viewCount || 0)} visualizzazioni${vehicle.type === 'buy' ? `, ${kilometer.format(purchaseRequestCount)} richieste d'acquisto` : ''}`}
+      />
+      <span className="vehicle-type">{vehicle.type === 'rent' ? 'NOLEGGIO' : 'IN VENDITA'}</span>
+      <div className="vehicle-info">
+        <div className="vehicle-title-row">
+          <div>
+            <p className="vehicle-make">{vehicle.make} · {vehicle.year} · {vehicle.color}</p>
+            <h3><a href={`/auto/${vehicle.id}`} onClick={(event) => { event.preventDefault(); onOpen(vehicle.id); }}>{vehicle.model}</a></h3>
+          </div>
+        </div>
+        <div className="vehicle-meta">
+          <span>{kilometer.format(vehicle.mileageKm)} km</span>
+          <span className="meta-divider" />
+          <span>{vehicle.bodyType || (vehicle.type === 'rent' ? 'Noleggio' : 'Disponibile subito')}</span>
+        </div>
+        <div className="vehicle-engagement" aria-label={`Statistiche ${vehicle.make} ${vehicle.model}`}>
+          <span className="vehicle-views-count">
+            <SiteIcon name="eye" /> {kilometer.format(vehicle.viewCount || 0)} visualizzazioni
+          </span>
+          {vehicle.type === 'buy' && (
+            <span><SiteIcon name="people" /> {kilometer.format(purchaseRequestCount)} richieste</span>
+          )}
+        </div>
+        <dl className="catalog-vehicle-specs" aria-label={`Specifiche ${vehicle.make} ${vehicle.model}`}>
+          <div>
+            <dt className="visually-hidden">Alimentazione</dt>
+            <dd><SiteIcon name="fuel" /><span>{vehicle.fuel || '—'}</span></dd>
+          </div>
+          <div>
+            <dt className="visually-hidden">Cambio</dt>
+            <dd><SiteIcon name="transmission" /><span>{vehicle.transmission || '—'}</span></dd>
+          </div>
+          <div>
+            <dt className="visually-hidden">Motore</dt>
+            <dd><SiteIcon name="engine" /><span>{engine}</span></dd>
+          </div>
+          <div>
+            <dt className="visually-hidden">Potenza</dt>
+            <dd><SiteIcon name="power" /><span>{formattedPower}</span></dd>
+          </div>
+        </dl>
+        <div className="vehicle-price-row">
+          <span className="vehicle-price-value">
+            <VehicleDiscountPrice
+              vehicle={vehicle}
+              vatLabel={vehicle.type === 'buy' ? getVehicleVatLabel(vehicle) : null}
+              showCountdown={false}
+              onExpire={onDiscountExpire}
+            />
+          </span>
+          <div className="vehicle-actions">
+            <button className="vehicle-enquire" type="button" onClick={() => onOpen(vehicle.id)}>
+              Dettagli <span aria-hidden="true">→</span>
+            </button>
+            <button
+              className={!isLoggedIn
+                ? 'vehicle-add is-login-required'
+                : isSelected ? 'vehicle-add is-added' : 'vehicle-add'}
+              type="button"
+              aria-label={!isLoggedIn
+                ? `Accedi per selezionare ${vehicle.model}`
+                : isSelected ? `${vehicle.model} già nella selezione` : `Aggiungi ${vehicle.model} alla selezione`}
+              onClick={() => onSelect(vehicle)}
+            >
+              <CartIcon className="vehicle-add-icon" />
+              {!isLoggedIn ? 'Accedi per selezionare' : isSelected ? 'Aggiunta ✓' : '+ Seleziona'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function renderLegalInline(text, onNavigate) {
+  const legalLinkRoutes = {
+    './PRIVACY-POLICY.md': '/privacy',
+    './TERMINI-CONDIZIONI.md': '/termini-condizioni',
+    './COOKIE-POLICY.md': '/cookie-policy',
+    './NOTE-LEGALI.md': '/note-legali',
+  };
+  const parts = [];
+  const pattern = /(\[([^\]]+)\]\(([^)]+)\))|(\*\*([^*]+)\*\*)/g;
+  let lastIndex = 0;
+  let match;
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index));
+    if (match[2] && match[3]) {
+      const href = legalLinkRoutes[match[3]] || match[3];
+      parts.push(
+        <a
+          href={href}
+          key={`${match.index}-link`}
+          onClick={href.startsWith('/') && onNavigate
+            ? (event) => { event.preventDefault(); onNavigate(href); }
+            : undefined}
+        >
+          {match[2]}
+        </a>,
+      );
+    } else {
+      parts.push(<strong key={`${match.index}-strong`}>{match[5]}</strong>);
+    }
+    lastIndex = pattern.lastIndex;
+  }
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex));
+  return parts;
+}
+
+function parseLegalMarkdown(markdown) {
+  const lines = markdown.split(/\r?\n/);
+  const blocks = [];
+  let index = 0;
+  while (index < lines.length) {
+    const line = lines[index].trim();
+    if (!line) {
+      index += 1;
+      continue;
+    }
+    if (/^>\s?/.test(line)) {
+      const quote = [];
+      while (index < lines.length && /^>\s?/.test(lines[index].trim())) {
+        quote.push(lines[index].trim().replace(/^>\s?/, ''));
+        index += 1;
+      }
+      blocks.push({ type: 'quote', text: quote.join(' ') });
+      continue;
+    }
+    const heading = line.match(/^(#{1,3})\s+(.+)$/);
+    if (heading) {
+      blocks.push({ type: `h${heading[1].length}`, text: heading[2] });
+      index += 1;
+      continue;
+    }
+    if (line.startsWith('|')) {
+      const rows = [];
+      while (index < lines.length && lines[index].trim().startsWith('|')) {
+        const cells = lines[index].trim().split('|').slice(1, -1).map((cell) => cell.trim());
+        if (!cells.every((cell) => /^:?-{3,}:?$/.test(cell))) rows.push(cells);
+        index += 1;
+      }
+      blocks.push({ type: 'table', rows });
+      continue;
+    }
+    if (/^- /.test(line)) {
+      const items = [];
+      while (index < lines.length && /^-\s+/.test(lines[index].trim())) {
+        items.push(lines[index].trim().replace(/^-\s+/, ''));
+        index += 1;
+      }
+      blocks.push({ type: 'list', items });
+      continue;
+    }
+    const paragraph = [line];
+    index += 1;
+    while (index < lines.length && lines[index].trim() && !/^(#{1,3})\s+|^>\s?|^- |^\|/.test(lines[index].trim())) {
+      paragraph.push(lines[index].trim());
+      index += 1;
+    }
+    blocks.push({ type: 'paragraph', text: paragraph.join(' ') });
+  }
+  return blocks;
+}
+
+function LegalDocumentPage({ document, onHome, onNavigate }) {
+  const blocks = parseLegalMarkdown(document.content);
+  const renderInline = (text) => renderLegalInline(text, onNavigate);
+  return (
+    <article className="legal-page dedicated-page" aria-labelledby="legal-page-title">
+      <header className="legal-page-header">
+        <p className="eyebrow"><ShieldCheck aria-hidden="true" /> {document.eyebrow}</p>
+        <h1 id="legal-page-title">{document.title}</h1>
+        <p>Informazioni trasparenti per usare PelusoGroup con consapevolezza.</p>
+      </header>
+      <div className="legal-page-body">
+        {blocks.map((block, blockIndex) => {
+          if (block.type === 'h1') return <h2 key={blockIndex}>{renderInline(block.text)}</h2>;
+          if (block.type === 'h2') return <h2 key={blockIndex}>{renderInline(block.text)}</h2>;
+          if (block.type === 'h3') return <h3 key={blockIndex}>{renderInline(block.text)}</h3>;
+          if (block.type === 'quote') return <blockquote key={blockIndex}>{renderInline(block.text)}</blockquote>;
+          if (block.type === 'list') return <ul key={blockIndex}>{block.items.map((item, itemIndex) => <li key={itemIndex}>{renderInline(item)}</li>)}</ul>;
+          if (block.type === 'table') return (
+            <div className="legal-table-wrap" key={blockIndex}>
+              <table>
+                <thead><tr>{block.rows[0]?.map((cell, cellIndex) => <th key={cellIndex}>{renderInline(cell)}</th>)}</tr></thead>
+                  <tbody>{block.rows.slice(1).map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, cellIndex) => <td key={cellIndex}>{renderInline(cell)}</td>)}</tr>)}</tbody>
+              </table>
+            </div>
+          );
+          return <p key={blockIndex}>{renderInline(block.text)}</p>;
+        })}
+      </div>
+      <button className="legal-page-back" type="button" onClick={onHome}>
+        <ArrowLeft aria-hidden="true" /> Torna alla home
+      </button>
+    </article>
+  );
+}
+
 function RouteStyleBoundary({ pathname, children }) {
   const [loadedPath, setLoadedPath] = useState(null);
   const [loadError, setLoadError] = useState(null);
@@ -5293,6 +6102,179 @@ function SiteAvailabilityPage({ mode, message, logoUrl, businessName, loading = 
   );
 }
 
+function AccountSettingsField({ label, icon: Icon, type = 'text', inputRef, ...inputProps }) {
+  const [visible, setVisible] = useState(false);
+  const isPassword = type === 'password';
+  return (
+    <label>
+      <span className="account-settings-field-label">{label}</span>
+      <span className={`account-settings-input${isPassword ? ' password-input-wrap' : ''}`}>
+        <Icon className="account-settings-input-icon" aria-hidden="true" />
+        <input {...inputProps} ref={inputRef} type={isPassword && visible ? 'text' : type} />
+        {isPassword && <VisibilityToggle visible={visible} onToggle={() => setVisible((current) => !current)} />}
+      </span>
+    </label>
+  );
+}
+
+function CustomerAccountSettings({ user, onUserUpdated, onDeleted, onCookieSettings, onNavigate }) {
+  const [busy, setBusy] = useState('');
+  const [status, setStatus] = useState({ action: '', error: '', message: '' });
+  const [emailPending, setEmailPending] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [username, setUsername] = useState(user.username || '');
+  const verificationInputRef = useRef(null);
+  const passwordRequirements = getPasswordRequirements(newPassword);
+  const completedRequirements = passwordRequirements.filter((item) => item.valid).length;
+
+  async function submit(event, action) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = Object.fromEntries(new FormData(form));
+    setStatus({ action, error: '', message: '' });
+    if (action === 'password' && data.newPassword !== data.confirmPassword) {
+      setStatus({ action, error: 'Le nuove password non coincidono.', message: '' });
+      return;
+    }
+    if (action === 'password' && passwordRequirements.some((item) => !item.valid)) {
+      setStatus({ action, error: 'La nuova password deve rispettare tutti i requisiti indicati.', message: '' });
+      return;
+    }
+    setBusy(action);
+    try {
+      let url = '/api/users/account/credentials';
+      let method = 'PATCH';
+      let body = { currentPassword: data.currentPassword };
+      if (action === 'password') body.newPassword = data.newPassword;
+      if (action === 'username') body.username = data.username;
+      if (action === 'email') {
+        url = '/api/users/account/email/request';
+        method = 'POST';
+        body.email = data.email;
+      }
+      if (action === 'verify') {
+        url = '/api/users/account/email/verify';
+        method = 'POST';
+        body.token = data.token;
+      }
+      if (action === 'delete') {
+        url = '/api/users/account';
+        method = 'DELETE';
+      }
+      const result = await requestJson(url, { method, body: JSON.stringify(body) });
+      form.reset();
+      if (action === 'password') setNewPassword('');
+      if (action === 'delete') {
+        onDeleted();
+        return;
+      }
+      if (result.user) onUserUpdated(result.user);
+      if (action === 'username') setUsername(result.user.username || '');
+      if (action === 'email') {
+        setEmailPending(true);
+        verificationInputRef.current?.focus();
+      }
+      if (action === 'verify' || action === 'password') setEmailPending(false);
+      const message = {
+        password: 'Password aggiornata. Le altre sessioni sono state disconnesse.',
+        username: 'Nome utente aggiornato. Le altre sessioni sono state disconnesse.',
+        email: 'Codice inviato al nuovo indirizzo. Inseriscilo entro 10 minuti.',
+        verify: 'Indirizzo email aggiornato. Le altre sessioni sono state disconnesse.',
+      }[action];
+      setStatus({ action, error: '', message });
+    } catch (requestError) {
+      setStatus({ action, error: requestError.message, message: '' });
+    } finally {
+      setBusy('');
+    }
+  }
+
+  const feedback = (action) => status.action === action && (
+    status.error ? <p className="form-error" role="alert">{status.error}</p>
+      : status.message ? <p className="form-success" role="status">{status.message}</p> : null
+  );
+  const submitButton = (action, label, loading) => (
+    <button className="button button-accent form-submit header-glossy-accent account-settings-submit" disabled={Boolean(busy)} type="submit">
+      {busy === action ? loading : label} <ArrowUpRight aria-hidden="true" />
+    </button>
+  );
+  const currentPassword = () => <AccountSettingsField label="Password attuale" icon={LockKeyhole} name="currentPassword" type="password" autoComplete="current-password" required />;
+
+  return (
+    <div className="account-settings">
+      <div className="account-settings-profile">
+        <span className="account-settings-profile-icon"><UserRound aria-hidden="true" /></span>
+        <div><span>ACCOUNT PERSONALE</span><strong>{user.name}</strong><small>{user.email}{user.username ? ` · @${user.username}` : ''}</small></div>
+        <ShieldCheck className="account-settings-profile-shield" aria-hidden="true" />
+      </div>
+      <div className="account-settings-heading"><div><p className="eyebrow">ACCESSO E SICUREZZA</p><h3>Le tue credenziali</h3><p>Apri la voce che vuoi modificare. Per proteggere il tuo account ti chiederemo la password attuale.</p></div></div>
+      <div className="account-settings-panels">
+        <details className="account-settings-panel">
+          <summary><span className="account-settings-panel-icon"><UserRound aria-hidden="true" /></span><span><strong>Nome utente</strong><small>{user.username ? `@${user.username}` : 'Non ancora impostato'}</small></span><Plus className="account-settings-expand" aria-hidden="true" /></summary>
+          <form className="account-settings-form" onSubmit={(event) => submit(event, 'username')}>
+            <p>Usalo al posto dell’email per accedere. Scegli 3–32 lettere, numeri, punti, trattini o underscore.</p>
+            <AccountSettingsField label="Nuovo nome utente" icon={UserRound} name="username" value={username} onChange={(event) => setUsername(event.target.value)} minLength="3" maxLength="32" pattern="[a-zA-Z0-9._-]{3,32}" autoComplete="username" required />
+            {currentPassword()}
+            {feedback('username')}
+            {submitButton('username', 'Salva nome utente', 'Salvataggio…')}
+          </form>
+        </details>
+        <details className="account-settings-panel">
+          <summary><span className="account-settings-panel-icon"><Mail aria-hidden="true" /></span><span><strong>Indirizzo email</strong><small>{user.email}</small></span><Plus className="account-settings-expand" aria-hidden="true" /></summary>
+          <div className="account-settings-panel-body">
+            <form className="account-settings-form" onSubmit={(event) => submit(event, 'email')}>
+              <p>Ti invieremo un codice al nuovo indirizzo. I contatti nelle richieste già inviate non cambiano.</p>
+              <AccountSettingsField label="Nuova email" icon={Mail} name="email" type="email" autoComplete="email" maxLength="254" placeholder="nome@esempio.it" required />
+              {currentPassword()}
+              {feedback('email')}
+              {submitButton('email', 'Invia codice di verifica', 'Invio…')}
+            </form>
+            <form className="account-settings-form account-settings-verification" onSubmit={(event) => submit(event, 'verify')}>
+              <h4>Hai ricevuto il codice?</h4>
+              <p>{emailPending ? 'Inserisci il codice inviato: è valido per 10 minuti dalla richiesta.' : 'Se hai già richiesto un codice, inseriscilo qui entro 10 minuti dalla richiesta.'}</p>
+              <AccountSettingsField label="Codice di verifica" icon={KeyRound} name="token" inputRef={verificationInputRef} autoComplete="off" minLength="32" maxLength="32" required />
+              {currentPassword()}
+              {feedback('verify')}
+              {submitButton('verify', 'Conferma nuova email', 'Verifica…')}
+            </form>
+          </div>
+        </details>
+        <details className="account-settings-panel">
+          <summary><span className="account-settings-panel-icon"><LockKeyhole aria-hidden="true" /></span><span><strong>Password</strong><small>Aggiorna la password di accesso</small></span><Plus className="account-settings-expand" aria-hidden="true" /></summary>
+          <form className="account-settings-form" onSubmit={(event) => submit(event, 'password')}>
+            <p>Le altre sessioni verranno disconnesse dopo la modifica.</p>
+            {currentPassword()}
+            <AccountSettingsField label="Nuova password" icon={LockKeyhole} name="newPassword" type="password" autoComplete="new-password" minLength="8" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required />
+            <div className="account-settings-password-guidance">
+              <div className="auth-password-guidance-heading"><span>La password deve includere</span><span>{completedRequirements}/{passwordRequirements.length}</span></div>
+              <div className="auth-password-progress" role="progressbar" aria-label="Requisiti password completati" aria-valuemin={0} aria-valuemax={passwordRequirements.length} aria-valuenow={completedRequirements}><span style={{ width: `${(completedRequirements / passwordRequirements.length) * 100}%` }} /></div>
+              <div className="auth-password-checks">{passwordRequirements.map((item) => <span className={item.valid ? 'is-valid' : ''} key={item.key}><span aria-hidden="true">{item.valid ? <Check /> : <Circle />}</span>{item.label}</span>)}</div>
+            </div>
+            <AccountSettingsField label="Conferma nuova password" icon={LockKeyhole} name="confirmPassword" type="password" autoComplete="new-password" required />
+            {feedback('password')}
+            {submitButton('password', 'Aggiorna password', 'Salvataggio…')}
+          </form>
+        </details>
+      </div>
+      <div className="account-settings-heading"><div><p className="eyebrow">I TUOI DATI</p><h3>Privacy e preferenze</h3><p>Gestisci le tue scelte e consulta le informazioni sul trattamento dei dati.</p></div></div>
+      <div className="account-settings-privacy">
+        <div className="account-settings-privacy-card"><span className="account-settings-panel-icon"><ShieldCheck aria-hidden="true" /></span><div><h4>Preferenze cookie</h4><p>Gestisci il consenso per analisi e contenuti esterni.</p><button className="button button-outline button-small" type="button" onClick={onCookieSettings}>Gestisci cookie <ArrowUpRight size={15} aria-hidden="true" /></button></div></div>
+        <div className="account-settings-privacy-card"><span className="account-settings-panel-icon"><Info aria-hidden="true" /></span><div><h4>Informative</h4><p>Scopri come vengono utilizzati i tuoi dati.</p><div className="account-settings-legal"><button type="button" onClick={() => onNavigate('/privacy')}>Privacy Policy <ArrowUpRight size={14} aria-hidden="true" /></button><button type="button" onClick={() => onNavigate('/cookie-policy')}>Cookie Policy <ArrowUpRight size={14} aria-hidden="true" /></button></div></div></div>
+      </div>
+      <details className="account-settings-panel account-settings-danger">
+        <summary><span className="account-settings-panel-icon"><Trash2 aria-hidden="true" /></span><span><strong>Cancella account</strong><small>Elimina definitivamente il tuo accesso</small></span><Plus className="account-settings-expand" aria-hidden="true" /></summary>
+        <form className="account-settings-form" onSubmit={(event) => submit(event, 'delete')}>
+          <p>L’accesso verrà eliminato subito e non potrai più consultare la tua attività. Richieste, conversazioni, acquisti e recensioni già registrati restano conservati separatamente; le vendite non mostreranno più il tuo account.</p>
+          {currentPassword()}
+          <label className="account-delete-confirm"><input type="checkbox" required /><span>Confermo di voler cancellare definitivamente l’account.</span></label>
+          {feedback('delete')}
+          <button className="button button-danger account-settings-delete-submit" disabled={Boolean(busy)} type="submit">{busy === 'delete' ? 'Cancellazione…' : 'Cancella definitivamente'} <Trash2 size={16} aria-hidden="true" /></button>
+        </form>
+      </details>
+    </div>
+  );
+}
+
 function App() {
   const initialCatalogFilters = useMemo(() => readCatalogFilters(), []);
   const prefersReducedMotion = useReducedMotion();
@@ -5309,11 +6291,11 @@ function App() {
   const [cookieConsentError, setCookieConsentError] = useState('');
   const [user, setUser] = useState(null);
   const [siteSettings, setSiteSettings] = useState(DEFAULT_SITE_SETTINGS);
+  const [legalDocumentContent, setLegalDocumentContent] = useState({});
   const [siteSettingsLoaded, setSiteSettingsLoaded] = useState(false);
   const [siteSettingsError, setSiteSettingsError] = useState('');
   const [dismissedAnnouncementKey, setDismissedAnnouncementKey] = useState('');
   const [siteClockNow, setSiteClockNow] = useState(Date.now());
-  const [newlyRegisteredUser, setNewlyRegisteredUser] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [authMode, setAuthMode] = useState('');
   const [authError, setAuthError] = useState('');
@@ -5364,6 +6346,7 @@ function App() {
   const cartDrawerRef = useRef(null);
   const [filter, setFilter] = useState(initialCatalogFilters.filter);
   const [catalogFiltersOpen, setCatalogFiltersOpen] = useState(false);
+  const [catalogExtraFiltersOpen, setCatalogExtraFiltersOpen] = useState(false);
   const [catalogPage, setCatalogPage] = useState(1);
   const [search, setSearch] = useState(initialCatalogFilters.search);
   const [catalogSearchPlaceholder, setCatalogSearchPlaceholder] = useState('Cerca marca, modello o caratteristiche');
@@ -5372,6 +6355,11 @@ function App() {
   const [makeFilter, setMakeFilter] = useState(initialCatalogFilters.makeFilter);
   const [bodyTypeFilter, setBodyTypeFilter] = useState(initialCatalogFilters.bodyTypeFilter);
   const [yearFilter, setYearFilter] = useState(initialCatalogFilters.yearFilter);
+  const [modelFilter, setModelFilter] = useState(initialCatalogFilters.modelFilter);
+  const [colorFilter, setColorFilter] = useState(initialCatalogFilters.colorFilter);
+  const [doorsFilter, setDoorsFilter] = useState(initialCatalogFilters.doorsFilter);
+  const [drivetrainFilter, setDrivetrainFilter] = useState(initialCatalogFilters.drivetrainFilter);
+  const [noviceDriverFilter, setNoviceDriverFilter] = useState(initialCatalogFilters.noviceDriverFilter);
   const [fuelFilter, setFuelFilter] = useState(initialCatalogFilters.fuelFilter);
   const [transmissionFilter, setTransmissionFilter] = useState(initialCatalogFilters.transmissionFilter);
   const [maxKm, setMaxKm] = useState(initialCatalogFilters.maxKm);
@@ -5427,16 +6415,24 @@ function App() {
     if (!catalogFiltersOpen || !catalogAdvancedFiltersRef.current) return;
     catalogAdvancedFiltersRef.current.style.transform = '';
     catalogAdvancedFiltersRef.current.style.transition = '';
+    catalogAdvancedFiltersRef.current.style.opacity = '';
+    catalogAdvancedFiltersRef.current.style.animation = '';
   }, [catalogFiltersOpen]);
 
   function startCatalogFilterDrag(event) {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
+    const panel = catalogAdvancedFiltersRef.current;
+    if (!panel) return;
+    panel.style.animation = 'none';
+    panel.getBoundingClientRect();
     event.currentTarget.setPointerCapture?.(event.pointerId);
     catalogFilterDragRef.current = {
       pointerId: event.pointerId,
       startY: event.clientY,
       offsetY: 0,
-      startedAt: performance.now(),
+      lastY: event.clientY,
+      lastMoveAt: performance.now(),
+      velocityY: 0,
       frameId: 0,
     };
   }
@@ -5444,14 +6440,18 @@ function App() {
   function moveCatalogFilterDrag(event) {
     const drag = catalogFilterDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId || !catalogAdvancedFiltersRef.current) return;
-    if (drag.frameId) window.cancelAnimationFrame(drag.frameId);
     const offsetY = Math.max(0, event.clientY - drag.startY);
     drag.offsetY = offsetY;
-    if (drag.frameId) window.cancelAnimationFrame(drag.frameId);
+    const now = performance.now();
+    drag.velocityY = (event.clientY - drag.lastY) / Math.max(1, now - drag.lastMoveAt);
+    drag.lastY = event.clientY;
+    drag.lastMoveAt = now;
+    if (drag.frameId) return;
     drag.frameId = window.requestAnimationFrame(() => {
-      if (!catalogAdvancedFiltersRef.current) return;
+      drag.frameId = 0;
+      if (catalogFilterDragRef.current !== drag || !catalogAdvancedFiltersRef.current) return;
       catalogAdvancedFiltersRef.current.style.transition = 'none';
-      catalogAdvancedFiltersRef.current.style.transform = `translate3d(-50%, ${offsetY}px, 0)`;
+      catalogAdvancedFiltersRef.current.style.transform = `translate3d(-50%, ${drag.offsetY}px, 0)`;
     });
   }
 
@@ -5459,25 +6459,46 @@ function App() {
     const drag = catalogFilterDragRef.current;
     if (!drag || drag.pointerId !== event.pointerId || !catalogAdvancedFiltersRef.current) return;
     catalogFilterDragRef.current = null;
-    const elapsed = Math.max(1, performance.now() - drag.startedAt);
-    const velocity = drag.offsetY / elapsed;
     const panel = catalogAdvancedFiltersRef.current;
-    if (drag.offsetY > 48 || velocity > 0.38) {
-      panel.style.transition = 'transform .44s cubic-bezier(.16, 1, .3, 1), opacity .32s ease';
-      panel.style.transform = 'translate3d(-50%, 110vh, 0)';
-      panel.style.opacity = '0';
-      window.setTimeout(() => {
+    drag.offsetY = Math.max(drag.offsetY, event.clientY - drag.startY);
+    if (drag.frameId) {
+      window.cancelAnimationFrame(drag.frameId);
+      drag.frameId = 0;
+    }
+    panel.style.transition = 'none';
+    panel.style.transform = `translate3d(-50%, ${drag.offsetY}px, 0)`;
+    panel.getBoundingClientRect();
+    const releaseVelocity = performance.now() - drag.lastMoveAt < 120 ? drag.velocityY : 0;
+    if (drag.offsetY > 48 || releaseVelocity > 0.38) {
+      let closeFallback;
+      const completeClose = () => {
+        window.clearTimeout(closeFallback);
+        panel.removeEventListener('transitionend', onCloseTransitionEnd);
         setCatalogFiltersOpen(false);
         panel.style.transform = '';
         panel.style.transition = '';
         panel.style.opacity = '';
-      }, 440);
+        panel.style.animation = '';
+      };
+      const onCloseTransitionEnd = (transitionEvent) => {
+        if (transitionEvent.target === panel && transitionEvent.propertyName === 'transform') {
+          completeClose();
+        }
+      };
+      panel.addEventListener('transitionend', onCloseTransitionEnd);
+      panel.style.transition = 'transform .28s cubic-bezier(.22, .82, .3, 1), opacity .24s ease';
+      panel.style.transform = 'translate3d(-50%, 110vh, 0)';
+      panel.style.opacity = '0';
+      closeFallback = window.setTimeout(completeClose, 360);
     } else {
-      panel.style.transition = 'transform .32s cubic-bezier(.22, .82, .22, 1)';
-      panel.style.transform = 'translate3d(-50%, 0, 0)';
-      window.setTimeout(() => {
+      const onSnapBackTransitionEnd = (transitionEvent) => {
+        if (transitionEvent.target !== panel || transitionEvent.propertyName !== 'transform') return;
+        panel.removeEventListener('transitionend', onSnapBackTransitionEnd);
         panel.style.transition = '';
-      }, 320);
+      };
+      panel.addEventListener('transitionend', onSnapBackTransitionEnd);
+      panel.style.transition = 'transform .24s cubic-bezier(.22, .82, .22, 1)';
+      panel.style.transform = 'translate3d(-50%, 0, 0)';
     }
   }
   const [contactMessage, setContactMessage] = useState('');
@@ -5495,7 +6516,8 @@ function App() {
   const [adminSearchTerm, setAdminSearchTerm] = useState('');
   const [adminInventoryFilter, setAdminInventoryFilter] = useState('all');
   const [adminInventorySort, setAdminInventorySort] = useState('default');
-  const [activeAccountSection, setActiveAccountSection] = useState('activity');
+  const [accountSection, setActiveAccountSection] = useState('activity');
+  const [accountSidebarOpen, setAccountSidebarOpen] = useState(false);
   const [emailError, setEmailError] = useState('');
   const [inventoryError, setInventoryError] = useState('');
   const [inventoryLoading, setInventoryLoading] = useState(true);
@@ -5539,6 +6561,20 @@ function App() {
   const [visitRequestBusy, setVisitRequestBusy] = useState('');
   purchaseRequestBusyRef.current = Boolean(purchaseRequestBusy);
   visitRequestBusyRef.current = Boolean(visitRequestBusy);
+  useEffect(() => {
+    if (!purchaseRequestStatus.error) return undefined;
+    const timer = window.setTimeout(() => {
+      setPurchaseRequestStatus((current) => current.error ? { ...current, error: '' } : current);
+    }, 10000);
+    return () => window.clearTimeout(timer);
+  }, [purchaseRequestStatus.error]);
+  useEffect(() => {
+    if (!visitRequestStatus.error) return undefined;
+    const timer = window.setTimeout(() => {
+      setVisitRequestStatus((current) => current.error ? { ...current, error: '' } : current);
+    }, 10000);
+    return () => window.clearTimeout(timer);
+  }, [visitRequestStatus.error]);
   const [purchaseRequestDeleteError, setPurchaseRequestDeleteError] = useState({ requestId: '', error: '' });
   const [adminMessage, setAdminMessage] = useState('');
   const [adminError, setAdminError] = useState('');
@@ -5901,8 +6937,10 @@ function App() {
   const isHomePage = normalizedPathname === '/';
   const isCatalogPage = normalizedPathname === '/catalogo';
   const isSellPage = normalizedPathname === '/vendi-auto';
-  const isPublicMainHeader = isHomePage || isSellPage || normalizedPathname.startsWith('/auto/');
   const isContactPage = normalizedPathname === '/contatti';
+  const isLegalPage = Boolean(LEGAL_DOCUMENTS[normalizedPathname]);
+  const legalDocument = LEGAL_DOCUMENTS[normalizedPathname];
+  const isPublicMainHeader = isHomePage || isSellPage || isContactPage || isLegalPage || normalizedPathname.startsWith('/auto/');
   const isAdminDashboardPage = normalizedPathname === '/admin' || isAdminEntryPage;
   const isAdminPage = normalizedPathname === '/admin/inventory';
   const isAdminPurchaseRequestsPage = normalizedPathname === '/admin/purchases';
@@ -5912,26 +6950,35 @@ function App() {
   const isAdminRentalsPage = normalizedPathname === '/admin/rentals';
   const isAdminVisitRequestsPage = normalizedPathname === '/admin/visits';
   const isAdminSettingsPage = normalizedPathname === '/admin/settings';
+  const isAdminLegalPage = normalizedPathname === '/admin/legal';
   const isAdminSecurityPage = normalizedPathname === '/admin/security';
+  const isAdminSecurityAuditPage = normalizedPathname === '/admin/security/audit';
+  const isAdminAccountsPage = normalizedPathname === '/admin/security/admins';
+  const isAdminLogsPage = normalizedPathname === '/admin/logs';
   const isAdminArea = normalizedPathname === '/admin' || normalizedPathname.startsWith('/admin/') || isAdminEntryPage;
   const isAdminRoutePending = isAdminArea && !authReady;
   const isAdminRouteBlocked = isAdminArea && (isAdminEntryPage
     ? authReady && user?.role === 'admin' && adminPinRequired
     : !authReady || user?.role !== 'admin' || adminPinRequired);
-  const isAccountPage = normalizedPathname === '/account';
+  const isAccountPrivacyPage = normalizedPathname === '/account/privacy';
+  const isAccountPage = normalizedPathname === '/account' || isAccountPrivacyPage;
+  const activeAccountSection = isAccountPrivacyPage ? 'privacy' : accountSection;
   const isKnownAdminPage = isAdminDashboardPage || isAdminPage || isAdminPurchaseRequestsPage
     || isAdminOffersPage || isAdminAnalyticsPage || isAdminMessagesPage || isAdminRentalsPage
-    || isAdminVisitRequestsPage || isAdminSettingsPage || isAdminSecurityPage;
+    || isAdminVisitRequestsPage || isAdminSettingsPage || isAdminLegalPage || isAdminSecurityPage || isAdminSecurityAuditPage || isAdminAccountsPage || isAdminLogsPage;
   const isKnownPublicPage = normalizedPathname === '/'
     || normalizedPathname === '/catalogo'
     || normalizedPathname === '/vendi-auto'
     || normalizedPathname === '/contatti'
+    || isLegalPage
     || normalizedPathname === '/account'
+    || isAccountPrivacyPage
     || normalizedPathname === '/account/offers'
     || /^\/auto\/[^/]+$/.test(normalizedPathname);
   const isNotFoundPage = !(isKnownAdminPage || isKnownPublicPage) && !isAdminEntryPending && !isAdminEntryCheckError;
   const publicStaffContacts = Array.isArray(siteSettings.staffContacts) ? siteSettings.staffContacts : DEFAULT_SITE_SETTINGS.staffContacts;
   const businessName = siteSettings.businessName?.trim() || DEFAULT_SITE_SETTINGS.businessName;
+  const siteTitle = siteSettings.siteTitle?.trim() || `${businessName} — La tua prossima auto`;
   const businessContactEmail = siteSettings.contactEmail?.trim() || '';
   const businessContactPhone = siteSettings.contactPhone?.trim() || '';
   const businessContactPhoneDigits = businessContactPhone.replace(/\D/g, '');
@@ -5952,12 +6999,182 @@ function App() {
   const mapsSearchUrl = `https://maps.google.com/?q=${encodeURIComponent(publicAddress)}`;
   const mapsEmbedUrl = `https://maps.google.com/maps?q=${encodeURIComponent(publicAddress)}&t=&z=16&ie=UTF8&iwloc=&output=embed`;
   useEffect(() => {
-    document.title = adminPinRequired ? `Verifica amministratore — ${businessName}` : `${businessName} — La tua prossima auto`;
-    const description = document.querySelector('meta[name="description"]');
-    if (description) {
-      description.setAttribute('content', `Trova la tua prossima auto con ${businessName}. Scopri auto selezionate da acquistare, noleggiare o vendere.`);
+    const origin = window.location.origin;
+    const pageUrl = `${origin}${normalizedPathname}`;
+    const vehicleTitle = activeVehicle
+      ? `${activeVehicle.year || ''} ${activeVehicle.make || ''} ${activeVehicle.model || ''}`.trim()
+      : '';
+    const contextualTitle = normalizedPathname === '/'
+      ? siteTitle
+      : normalizedPathname === '/catalogo'
+        ? `Catalogo auto — ${businessName}`
+        : normalizedPathname === '/vendi-auto'
+          ? `Vendi la tua auto — ${businessName}`
+          : normalizedPathname === '/contatti'
+            ? `Contatti — ${businessName}`
+            : isAccountPrivacyPage
+              ? `Privacy e account — ${businessName}`
+            : normalizedPathname === '/account'
+              ? `Area personale — ${businessName}`
+              : normalizedPathname === '/account/offers'
+                ? `Le mie richieste — ${businessName}`
+                : isLegalPage
+                  ? `${legalDocument.title} — ${businessName}`
+                  : isAdminSecurityPage
+                    ? `Sicurezza account — ${businessName}`
+                    : isAdminSettingsPage
+                      ? `Impostazioni — ${businessName}`
+                      : isAdminLegalPage
+                        ? `Documenti legali — ${businessName}`
+                      : isAdminSecurityAuditPage
+                        ? `Audit sicurezza recente — ${businessName}`
+                      : isAdminAccountsPage
+                        ? `Account amministratori — ${businessName}`
+                      : isAdminLogsPage
+                        ? `Attività amministrative — ${businessName}`
+                      : isAdminAnalyticsPage
+                        ? `Statistiche — ${businessName}`
+                        : isAdminMessagesPage
+                          ? `Messaggi e richieste — ${businessName}`
+                          : isAdminPage
+                            ? `Inventario — ${businessName}`
+                            : isAdminPurchaseRequestsPage
+                              ? `Richieste di acquisto — ${businessName}`
+                              : isAdminOffersPage
+                                ? `Offerte — ${businessName}`
+                                : isAdminRentalsPage
+                                  ? `Richieste noleggio — ${businessName}`
+                                  : isAdminVisitRequestsPage
+                                    ? `Visite — ${businessName}`
+                          : isAdminArea
+                            ? `Dashboard amministratore — ${businessName}`
+                            : `${businessName} — La tua prossima auto`;
+    const title = isNotFoundPage
+      ? `Pagina non trovata — ${businessName}`
+      : adminPinRequired
+        ? `Verifica amministratore — ${businessName}`
+        : vehicleTitle
+          ? `${vehicleTitle} — ${businessName}`
+          : contextualTitle;
+    const description = vehicleTitle
+      ? `${vehicleTitle}. Scopri prezzo, caratteristiche e disponibilità su ${businessName}.`
+      : `Trova la tua prossima auto con ${businessName}. Scopri auto selezionate da acquistare, noleggiare o vendere.`;
+    document.title = title;
+    const setMeta = (attribute, key, content) => {
+      let element = document.head.querySelector(`meta[${attribute}="${key}"]`);
+      if (!element) {
+        element = document.createElement('meta');
+        element.setAttribute(attribute, key);
+        document.head.appendChild(element);
+      }
+      element.setAttribute('content', content);
+    };
+    setMeta('name', 'description', description);
+    setMeta('name', 'robots', isNotFoundPage || isAdminArea || isAccountPage ? 'noindex,nofollow' : 'index,follow');
+    setMeta('property', 'og:title', title);
+    setMeta('property', 'og:description', description);
+    setMeta('property', 'og:url', pageUrl);
+    setMeta('property', 'og:type', activeVehicle ? 'product' : 'website');
+    setMeta('property', 'og:image', activeVehicle?.images?.[0] ? new URL(activeVehicle.images[0], origin).href : `${origin}/images/logo.png`);
+    setMeta('name', 'twitter:title', title);
+    setMeta('name', 'twitter:description', description);
+    setMeta('name', 'twitter:image', activeVehicle?.images?.[0] ? new URL(activeVehicle.images[0], origin).href : `${origin}/images/logo.png`);
+    let favicon = document.head.querySelector('link[rel="icon"]');
+    if (!favicon) {
+      favicon = document.createElement('link');
+      favicon.rel = 'icon';
+      document.head.appendChild(favicon);
     }
-  }, [adminPinRequired, businessName]);
+    const faviconUrl = siteSettings.faviconUrl || DEFAULT_SITE_SETTINGS.faviconUrl;
+    favicon.type = faviconUrl.endsWith('.svg') ? 'image/svg+xml' : 'image/png';
+    favicon.href = faviconUrl;
+    let canonical = document.head.querySelector('link[rel="canonical"]');
+    if (!canonical) {
+      canonical = document.createElement('link');
+      canonical.rel = 'canonical';
+      document.head.appendChild(canonical);
+    }
+    canonical.href = pageUrl;
+
+    let structuredData = document.head.querySelector('#site-structured-data');
+    if (!structuredData) {
+      structuredData = document.createElement('script');
+      structuredData.id = 'site-structured-data';
+      structuredData.type = 'application/ld+json';
+      document.head.appendChild(structuredData);
+    }
+    if (isNotFoundPage || isAdminArea || isAccountPage) {
+      structuredData.textContent = '';
+      return;
+    }
+    const graph = [{
+      '@type': 'AutoDealer',
+      '@id': `${origin}/#dealer`,
+      name: businessName,
+      url: origin,
+      logo: `${origin}/images/logo.png`,
+      telephone: businessContactPhone || undefined,
+      email: businessContactEmail || undefined,
+      address: {
+        '@type': 'PostalAddress',
+        streetAddress: publicAddress,
+        addressCountry: 'IT',
+      },
+    }];
+    if (activeVehicle) {
+      graph.push({
+        '@type': 'Vehicle',
+        '@id': `${pageUrl}#vehicle`,
+        name: vehicleTitle,
+        url: pageUrl,
+        image: (activeVehicle.images || []).map((image) => new URL(image, origin).href),
+        brand: activeVehicle.make ? { '@type': 'Brand', name: activeVehicle.make } : undefined,
+        model: activeVehicle.model || undefined,
+        vehicleModelDate: activeVehicle.year || undefined,
+        mileageFromOdometer: activeVehicle.mileageKm !== undefined
+          ? { '@type': 'QuantitativeValue', value: activeVehicle.mileageKm, unitCode: 'KMT' }
+          : undefined,
+        fuelType: activeVehicle.fuel || undefined,
+        vehicleTransmission: activeVehicle.transmission || undefined,
+        offers: typeof activeVehicle.price === 'number' ? {
+          '@type': 'Offer',
+          priceCurrency: 'EUR',
+          price: activeVehicle.discountPrice || activeVehicle.price,
+          availability: 'https://schema.org/InStock',
+          url: pageUrl,
+        } : undefined,
+      });
+    }
+    structuredData.textContent = JSON.stringify({ '@context': 'https://schema.org', '@graph': graph });
+  }, [
+    activeVehicle,
+    adminPinRequired,
+    businessContactEmail,
+    businessContactPhone,
+    businessName,
+    isAdminAnalyticsPage,
+    isAdminMessagesPage,
+    isAdminOffersPage,
+    isAdminPage,
+    isAdminPurchaseRequestsPage,
+    isAdminRentalsPage,
+    isAdminSecurityPage,
+    isAdminSettingsPage,
+    isAdminLegalPage,
+    isAdminSecurityAuditPage,
+    isAdminAccountsPage,
+    isAdminLogsPage,
+    isAdminVisitRequestsPage,
+    isLegalPage,
+    legalDocument,
+    isAccountPage,
+    isAdminArea,
+    isNotFoundPage,
+    normalizedPathname,
+    publicAddress,
+    siteSettings.faviconUrl,
+    siteTitle,
+  ]);
   const siteAnnouncement = siteSettings.announcement
     && new Date(siteSettings.announcement.expiresAt).getTime() > siteClockNow
     ? siteSettings.announcement
@@ -6136,6 +7353,10 @@ function App() {
       ].filter((entry) => entry.value > 0),
     };
   }, [vehicles]);
+  const homeFeaturedVehicles = useMemo(() => ({
+    buy: vehicles.filter((vehicle) => vehicle.type === 'buy').slice(0, 3),
+    rent: vehicles.filter((vehicle) => vehicle.type === 'rent').slice(0, 3),
+  }), [vehicles]);
   const popularBrandLogoSources = availablePopularMakes
     .map(({ make }) => POPULAR_MAKE_LOGO_PATHS[make.toLocaleLowerCase('it').replace(/[^a-z0-9]/g, '')])
     .filter(Boolean);
@@ -6144,6 +7365,37 @@ function App() {
     VEHICLE_BODY_TYPES.map((type) => VEHICLE_BODY_TYPE_ICON_PATHS[type]),
   );
   const years = useMemo(() => [...new Set(vehicles.map((vehicle) => vehicle.year))].sort((a, b) => b - a), [vehicles]);
+  const models = useMemo(() => {
+    const options = new Map();
+    vehicles
+      .filter((vehicle) => makeFilter === 'all' || normalizeVehicleMake(vehicle.make) === normalizeVehicleMake(makeFilter))
+      .forEach((vehicle) => {
+        const value = vehicle.model?.trim();
+        if (value) options.set(value.toLocaleLowerCase('it'), value);
+      });
+    return [...options.values()].sort((a, b) => a.localeCompare(b, 'it'));
+  }, [vehicles, makeFilter]);
+  const colors = useMemo(() => {
+    const options = new Map();
+    vehicles.forEach((vehicle) => {
+      const value = vehicle.color?.trim();
+      if (value) options.set(value.toLocaleLowerCase('it'), value);
+    });
+    return [...options.values()].sort((a, b) => a.localeCompare(b, 'it'));
+  }, [vehicles]);
+  const doorOptions = useMemo(
+    () => [...new Set(vehicles.map((vehicle) => Number(vehicle.doors)).filter((doors) => Number.isInteger(doors) && doors > 0))]
+      .sort((a, b) => a - b),
+    [vehicles],
+  );
+  const drivetrainOptions = useMemo(() => {
+    const options = new Map();
+    vehicles.forEach((vehicle) => {
+      const value = vehicle.drivetrain?.trim();
+      if (value) options.set(value.toLocaleLowerCase('it'), value);
+    });
+    return [...options.values()].sort((a, b) => a.localeCompare(b, 'it'));
+  }, [vehicles]);
   const fuelOptions = useMemo(
     () => {
       const options = new Map();
@@ -6175,6 +7427,11 @@ function App() {
         && (makeFilter === 'all' || normalizeVehicleMake(vehicle.make) === normalizeVehicleMake(makeFilter))
         && (bodyTypeFilter === 'all' || normalizeVehicleBodyType(vehicle.bodyType) === bodyTypeFilter)
         && (yearFilter === 'all' || vehicle.year === Number(yearFilter))
+        && (!modelFilter || vehicle.model?.trim().toLocaleLowerCase('it') === modelFilter.toLocaleLowerCase('it'))
+        && (!colorFilter || vehicle.color?.trim().toLocaleLowerCase('it') === colorFilter.toLocaleLowerCase('it'))
+        && (!doorsFilter || Number(vehicle.doors) === Number(doorsFilter))
+        && (!drivetrainFilter || vehicle.drivetrain?.trim().toLocaleLowerCase('it') === drivetrainFilter.toLocaleLowerCase('it'))
+        && (!noviceDriverFilter || (vehicle.noviceDriverEligible || 'unknown') === noviceDriverFilter)
         && (!fuelFilter || vehicle.fuel?.trim().toLocaleLowerCase('it') === fuelFilter.toLocaleLowerCase('it'))
         && (!transmissionFilter || vehicle.transmission?.trim().toLocaleLowerCase('it') === transmissionFilter.toLocaleLowerCase('it'))
         && (!maxKm || vehicle.mileageKm <= Number(maxKm))
@@ -6191,7 +7448,7 @@ function App() {
       if (sortBy === 'km-asc') return a.mileageKm - b.mileageKm;
       return vehicles.indexOf(a) - vehicles.indexOf(b);
     });
-  }, [vehicles, filter, makeFilter, bodyTypeFilter, yearFilter, fuelFilter, transmissionFilter, maxKm, maxPrice, maxPower, search, sortBy, discountExpiryVersion]);
+  }, [vehicles, filter, makeFilter, bodyTypeFilter, yearFilter, modelFilter, colorFilter, doorsFilter, drivetrainFilter, noviceDriverFilter, fuelFilter, transmissionFilter, maxKm, maxPrice, maxPower, search, sortBy, discountExpiryVersion]);
 
   const topDiscountedVehicles = useMemo(
     () => vehicles
@@ -6335,6 +7592,25 @@ function App() {
       });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    const legalPath = pathname.replace(/\/+$/, '') || '/';
+    const slug = Object.prototype.hasOwnProperty.call(LEGAL_DOCUMENTS, legalPath)
+      ? legalPath.slice(1)
+      : '';
+    if (!slug) return undefined;
+    let active = true;
+    requestJson(`/api/site/legal/${slug}`)
+      .then(({ document }) => {
+        if (active && document?.content) {
+          setLegalDocumentContent((current) => ({ ...current, [slug]: document.content }));
+        }
+      })
+      .catch((error) => {
+        console.error('Impossibile caricare il documento legale aggiornato:', error);
+      });
+    return () => { active = false; };
+  }, [pathname]);
 
   useEffect(() => {
     let active = true;
@@ -6863,6 +8139,11 @@ function App() {
         makeFilter,
         bodyTypeFilter,
         yearFilter,
+        modelFilter,
+        colorFilter,
+        doorsFilter,
+        drivetrainFilter,
+        noviceDriverFilter,
         fuelFilter,
         transmissionFilter,
         maxKm,
@@ -6874,7 +8155,7 @@ function App() {
     } catch (error) {
       console.error('Impossibile salvare i filtri del catalogo:', error);
     }
-  }, [filter, makeFilter, bodyTypeFilter, yearFilter, fuelFilter, transmissionFilter, maxKm, maxPrice, maxPower, search, sortBy]);
+  }, [filter, makeFilter, bodyTypeFilter, yearFilter, modelFilter, colorFilter, doorsFilter, drivetrainFilter, noviceDriverFilter, fuelFilter, transmissionFilter, maxKm, maxPrice, maxPower, search, sortBy]);
 
   useEffect(() => {
     try {
@@ -7223,7 +8504,13 @@ function App() {
   }
 
   function selectAccountSection(section) {
-    setActiveAccountSection(section);
+    if (section === 'privacy') {
+      if (!isAccountPrivacyPage) navigateToPath('/account/privacy');
+    } else {
+      setActiveAccountSection(section);
+      if (isAccountPrivacyPage) navigateToPath('/account');
+    }
+    setAccountSidebarOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -7232,7 +8519,7 @@ function App() {
       ? window.location.pathname === '/admin/verify'
         ? adminPinDestinationRef.current
         : window.location.pathname.startsWith('/admin') ? window.location.pathname : '/admin'
-      : '/account';
+      : window.location.pathname === '/account/privacy' ? '/account/privacy' : '/account';
     navigateToPath(destination, window.location.pathname === '/admin/verify');
   }
 
@@ -7539,6 +8826,7 @@ function App() {
   function goToMake(make) {
     const matchingMake = vehicles.find((vehicle) => normalizeVehicleMake(vehicle.make) === normalizeVehicleMake(make))?.make;
     setMakeFilter(matchingMake || make);
+    setModelFilter('');
     closeMenu(false);
     navigateToPath('/catalogo');
   }
@@ -7774,6 +9062,25 @@ function App() {
   async function submitVisitRequest(event, vehicle) {
     event.preventDefault();
     const form = event.currentTarget;
+    const invalidField = Array.from(form.elements).find((field) => typeof field.checkValidity === 'function' && !field.checkValidity());
+    if (invalidField) {
+      const fieldMessages = {
+        visitDate: 'Seleziona il giorno della visita.',
+        visitTime: 'Seleziona l’orario della visita.',
+        name: 'Inserisci nome e cognome.',
+        email: 'Inserisci un indirizzo email valido.',
+        phone: 'Inserisci un numero di telefono valido.',
+        termsAccepted: 'Accetta i termini e le condizioni per proseguire.',
+      };
+      setVisitRequestStatus({
+        vehicleId: vehicle.id,
+        error: fieldMessages[invalidField.name] || 'Controlla i dati obbligatori prima di proseguire.',
+        message: '',
+        warning: false,
+      });
+      invalidField.focus();
+      return;
+    }
     const formData = new FormData(form);
     const localVisitAt = parseDateTimeInTimeZone(
       formData.get('visitDate'),
@@ -8252,6 +9559,11 @@ function App() {
     setMakeFilter('all');
     setBodyTypeFilter('all');
     setYearFilter('all');
+    setModelFilter('');
+    setColorFilter('');
+    setDoorsFilter('');
+    setDrivetrainFilter('');
+    setNoviceDriverFilter('');
     setFuelFilter('');
     setTransmissionFilter('');
     setMaxKm('');
@@ -8259,6 +9571,7 @@ function App() {
     setMaxPower('');
     setSearch('');
     setSortBy('recommended');
+    setCatalogExtraFiltersOpen(false);
   }
 
   function stopCarouselAnimation(track) {
@@ -8405,7 +9718,6 @@ function App() {
         );
         if (authRequestIdRef.current !== requestId) return;
         setUser(verifiedUser);
-        setNewlyRegisteredUser(false);
         setAdminPinRequired(false);
         setAdminTotpRequired(false);
         setAdminPinExpiresAt(null);
@@ -8444,7 +9756,6 @@ function App() {
         return;
       }
       setUser(signedInUser);
-      setNewlyRegisteredUser(authMode === 'signup');
       setAuthMode('');
       setAuthReady(true);
       setPasswordVisible(false);
@@ -8460,7 +9771,6 @@ function App() {
   async function handleLogout() {
     authRequestIdRef.current += 1;
     setUser(null);
-    setNewlyRegisteredUser(false);
     setAdminPinRequired(false);
     setAdminTotpRequired(false);
     setAdminPinExpiresAt(null);
@@ -8822,17 +10132,12 @@ function App() {
   return (
     <RouteStyleBoundary pathname={pathname}>
     <div
-      className={`site-shell${isCatalogPage ? ' catalog-page-shell' : ''}${normalizedPathname.startsWith('/auto/') ? ' vehicle-detail-page-shell' : ''}${isAdminArea && !isAdminRouteBlocked && !isNotFoundPage ? ' admin-site-shell' : ''}${isAdminArea && !isAdminRouteBlocked && !isNotFoundPage && user?.role === 'admin' && !adminPinRequired ? ' admin-authenticated-shell' : ''}${visibleSiteAnnouncement && !isAdminArea ? ' has-site-announcement' : ''}`}
+      className={`site-shell${isAccountPage ? ' account-page-shell' : ''}${isCatalogPage ? ' catalog-page-shell' : ''}${isSellPage ? ' sell-page-shell' : ''}${normalizedPathname.startsWith('/auto/') ? ' vehicle-detail-page-shell' : ''}${isAdminArea && !isAdminRouteBlocked && !isNotFoundPage ? ' admin-site-shell' : ''}${isAdminArea && !isAdminRouteBlocked && !isNotFoundPage && user?.role === 'admin' && !adminPinRequired ? ' admin-authenticated-shell' : ''}${visibleSiteAnnouncement && !isAdminArea ? ' has-site-announcement' : ''}`}
       data-theme="public"
       data-home-theme={(isHomePage || isSellPage || isAccountPage || isCatalogPage) && !isSiteUnavailable && !isSiteSettingsLoading ? 'monochrome' : undefined}
       style={visibleSiteAnnouncement && !isAdminArea ? { '--site-announcement-height': '44px' } : undefined}
     >
       {!adminPinRequired && <>
-      {!isNotFoundPage && !isAdminArea && !isSiteUnavailable && !isSiteSettingsLoading && cookieConsent && !cookieSettingsOpen && (
-        <button className={`cookie-settings-trigger${adminPinRequired ? ' is-auth-suppressed' : ''}`} type="button" onClick={openCookieSettings}>
-          Preferenze cookie
-        </button>
-      )}
       {!isNotFoundPage && !isAdminArea && !isSiteUnavailable && !isSiteSettingsLoading && (!cookieConsent || cookieSettingsOpen) && (
         <section className="cookie-consent-banner" aria-labelledby="cookie-consent-title">
           <div className="cookie-consent-copy">
@@ -8919,7 +10224,7 @@ function App() {
       {!isNotFoundPage && !isAdminRouteBlocked && !isSiteUnavailable && !isSiteSettingsLoading
         && !isAdminEntryPending && !isAdminEntryCheckError
         && (!isAdminEntryPage || user?.role === 'admin')
-        && <header className={`site-header${isAdminArea ? ' admin-site-header' : ''}${isPublicMainHeader ? ' public-main-header' : ''}${visibleSiteAnnouncement && !isAdminArea ? ' has-site-announcement' : ''}`}>
+        && <header className={`site-header${isAdminArea ? ' admin-site-header' : ''}${isPublicMainHeader ? ' public-main-header' : ''}${isAccountPage ? ' account-site-header' : ''}${visibleSiteAnnouncement && !isAdminArea ? ' has-site-announcement' : ''}`}>
         {isAdminArea ? (
           <AdminConsoleHeader
             searchTerm={adminSearchTerm}
@@ -8938,20 +10243,22 @@ function App() {
           <>
         {isPublicMainHeader ? (
           <>
-            <a className="public-header-brand" href="/" aria-label={`${businessName}, pagina iniziale`} onClick={(event) => { event.preventDefault(); navigateToHome(); }}>
-              <img src={siteSettings.logoUrl || DEFAULT_SITE_SETTINGS.logoUrl} alt={businessName} />
-            </a>
+            {!normalizedPathname.startsWith('/auto/') && (
+              <a className="public-header-brand" href="/" aria-label={`${businessName}, pagina iniziale`} onClick={(event) => { event.preventDefault(); navigateToHome(); }}>
+                <img src={siteSettings.logoUrl || DEFAULT_SITE_SETTINGS.logoUrl} alt={businessName} />
+              </a>
+            )}
             {normalizedPathname.startsWith('/auto/') && (
-              <button className="public-header-catalog" type="button" onClick={() => navigateToPath('/catalogo')}>
+              <button className="public-header-catalog" type="button" aria-label="Torna al catalogo" onClick={() => navigateToPath('/catalogo')}>
                 <ArrowLeft size={17} aria-hidden="true" />
-                <span>Catalogo</span>
+                <span>Torna indietro</span>
               </button>
             )}
             <nav className="public-header-nav" aria-label="Navigazione principale">
               {!normalizedPathname.startsWith('/auto/') && <a href="/catalogo" onClick={(event) => { event.preventDefault(); goToInventory('all'); }}>Auto disponibili</a>}
               <a href="/vendi-auto" aria-current={isSellPage ? 'page' : undefined} onClick={(event) => { event.preventDefault(); navigateToPath('/vendi-auto'); }}>Vendi auto</a>
               <a href="/#about" onClick={(event) => { event.preventDefault(); navigateToHome('about'); }}>Chi siamo</a>
-              <a href="/contatti" onClick={(event) => { event.preventDefault(); navigateToPath('/contatti'); }}>Contatti</a>
+              <a href="/contatti" aria-current={isContactPage ? 'page' : undefined} onClick={(event) => { event.preventDefault(); navigateToPath('/contatti'); }}>Contatti</a>
             </nav>
             <div className="public-header-actions">
               {user?.role === 'user' && (
@@ -8983,7 +10290,7 @@ function App() {
                 aria-controls="site-menu"
                 onClick={() => setMenuOpen(true)}
               >
-                <span className="public-header-menu-icon" aria-hidden="true"><i /><i /></span>
+                <Menu size={20} strokeWidth={1.8} aria-hidden="true" />
                 <span className="public-header-action-label">Menu</span>
               </button>
             </div>
@@ -9020,7 +10327,7 @@ function App() {
               aria-controls="catalog-advanced-filters"
               onClick={() => setCatalogFiltersOpen((open) => !open)}
             >
-              <ListFilter size={16} aria-hidden="true" />
+              <SlidersHorizontal size={18} strokeWidth={1.8} aria-hidden="true" />
             </button>
           </div>
         )}
@@ -9031,30 +10338,51 @@ function App() {
             <button type="button" onClick={() => navigateToSection('about')}>Chi siamo</button>
           </nav>
         )}
+        {isAccountPage && (
+          <a className="account-dashboard-brand" href="/" aria-label={`${businessName}, pagina iniziale`} onClick={(event) => { event.preventDefault(); navigateToHome(); }}>
+            <img src={siteSettings.logoUrl || DEFAULT_SITE_SETTINGS.logoUrl} alt={businessName} />
+          </a>
+        )}
         <div className="header-actions">
+          {isCatalogPage && (
+            <button
+              className="catalog-header-account"
+              type="button"
+              aria-label={user?.role === 'admin' ? 'Apri la dashboard amministratore' : user ? 'Apri la tua area personale' : 'Accedi al tuo account'}
+              onClick={() => {
+                if (user?.role === 'admin') navigateToPath('/admin');
+                else if (user) navigateToPath('/account');
+                else { setAuthError(''); setAuthMode('login'); }
+              }}
+            >
+              <UserRound size={20} aria-hidden="true" />
+            </button>
+          )}
           {user?.role === 'admin' ? (
-            <button className="admin-header-link header-glossy-accent" type="button" onClick={() => navigateToPath('/admin')} aria-label="Apri la dashboard amministratore">
-              {isCatalogPage ? <><UserRound size={18} aria-hidden="true" /><span className="admin-header-label">Amministratore</span></> : 'Amministratore'}
+            !isCatalogPage && <button className="admin-header-link header-glossy-accent" type="button" onClick={() => navigateToPath('/admin')} aria-label="Apri la dashboard amministratore">
+              Amministratore
               <span className="admin-header-arrow" aria-hidden="true">→</span>
             </button>
           ) : (
             <>
-              {user?.role === 'user' && !normalizedPathname.startsWith('/auto/') && (
+              {user?.role === 'user' && !normalizedPathname.startsWith('/auto/') && !isAccountPage && !isCatalogPage && (
                 <button className="header-account-link header-glossy-accent" type="button" onClick={() => navigateToPath('/account')} aria-label="Apri la tua area personale">
                   <span className="header-account-avatar" aria-hidden="true">{user.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}</span>
                   <span className="header-account-label">ACCOUNT</span>
                 </button>
               )}
-              <button ref={cartToggleRef} className={user ? 'cart-toggle' : 'cart-toggle is-login-required header-glossy-accent'} type="button" aria-label={user ? `Apri la selezione auto, ${selectedVehicles.length} veicoli` : 'Accedi per aprire la selezione auto'} onClick={openCart}>
-                <CartIcon />
-                <span className="cart-toggle-label">{user ? 'LA MIA SELEZIONE' : 'ACCEDI'}</span>
-                <span className="cart-count">{user ? selectedVehicles.length : 0}</span>
-              </button>
+              {!isAccountPage && (
+                <button ref={cartToggleRef} className={`${user ? 'cart-toggle' : 'cart-toggle is-login-required header-glossy-accent'}`} type="button" aria-label={user ? `Apri la selezione auto, ${selectedVehicles.length} veicoli` : 'Accedi per aprire la selezione auto'} onClick={openCart}>
+                  <CartIcon />
+                  <span className="cart-toggle-label">{user ? 'LA MIA SELEZIONE' : 'ACCEDI'}</span>
+                  <span className="cart-count">{user ? selectedVehicles.length : 0}</span>
+                </button>
+              )}
             </>
           )}
           <span className="italian-flag" role="img" aria-label="Bandiera italiana"><i /><i /><i /></span>
           <button
-            className="menu-toggle"
+            className={`menu-toggle${isAccountPage ? ' account-site-header-control' : ''}`}
             ref={menuToggleRef}
             type="button"
             aria-label="Apri il menu di navigazione"
@@ -9062,12 +10390,7 @@ function App() {
             aria-controls="site-menu"
             onClick={() => setMenuOpen(true)}
           >
-            <svg className="catalog-menu-icon" viewBox="0 0 24 24" aria-hidden="true">
-              <rect x="3" y="3" width="7" height="7" rx="2" />
-              <rect x="14" y="3" width="7" height="7" rx="2" />
-              <rect x="3" y="14" width="7" height="7" rx="2" />
-              <rect x="14" y="14" width="7" height="7" rx="2" />
-            </svg>
+            <Menu size={20} strokeWidth={1.8} aria-hidden="true" />
             <span className="menu-toggle-label">MENU</span>
           </button>
         </div>
@@ -9250,6 +10573,10 @@ function App() {
                     : isAdminVisitRequestsPage ? 'visits'
                       : isAdminAnalyticsPage ? 'analytics'
                         : isAdminSettingsPage ? 'settings'
+                          : isAdminLegalPage ? 'legal'
+                            : isAdminSecurityAuditPage ? 'audit'
+                              : isAdminAccountsPage ? 'admins'
+                                : isAdminLogsPage ? 'logs'
                           : isAdminSecurityPage ? 'security'
                           : 'messages'}
             pendingPurchases={adminPurchaseRequests.filter((request) => request.status === 'pending').length}
@@ -9263,8 +10590,15 @@ function App() {
           />
         )}
         {!isNotFoundPage && !isAdminRouteBlocked && !isSiteUnavailable && !isSiteSettingsLoading && !isAdminEntryPending && !isAdminEntryCheckError && <div className={isAdminArea && user?.role === 'admin' && !adminPinRequired ? 'admin-main-content' : 'route-content'}>
-        {activeVehicle ? (
+        {isLegalPage ? (
+          <LegalDocumentPage
+            document={{ ...legalDocument, content: legalDocumentContent[normalizedPathname.slice(1)] || legalDocument.content }}
+            onHome={() => navigateToHome()}
+            onNavigate={navigateToPath}
+          />
+        ) : activeVehicle ? (
           <section className="vehicle-detail section-wrap" aria-labelledby="vehicle-detail-title">
+            <div className="vehicle-detail-content-layout">
             <div className="vehicle-detail-heading">
               <div>
                 <p className="eyebrow vehicle-detail-status"><span />{activeVehicle.type === 'rent' ? 'DISPONIBILE A NOLEGGIO' : 'DISPONIBILE PER L’ACQUISTO'}</p>
@@ -9291,7 +10625,6 @@ function App() {
               <div><SiteIcon name="transmission" /><span><small>CAMBIO</small><strong>{activeVehicle.transmission}</strong></span></div>
               </div>
             </section>
-            <div className="vehicle-detail-content-layout">
             <div className="vehicle-detail-layout">
               <div className="vehicle-detail-gallery-column">
                 <div
@@ -9399,6 +10732,7 @@ function App() {
                     ))}
                   </div>
                 )}
+                <VehicleDownloadButton vehicleId={activeVehicle.id} />
               </div>
               <aside className="vehicle-contact-panel" aria-label="Richieste e contatti">
                 <div className="vehicle-contact-heading">
@@ -9671,18 +11005,49 @@ function App() {
             </div>
             <section className="vehicle-detail-panel">
                 <div className="vehicle-panel-heading">
-                  <span className="eyebrow">LA SCHEDA</span>
-                  <h2>Dati tecnici e dettagli <em>dell’auto</em></h2>
+                  {detailImages[0] && (
+                    <img
+                      className="vehicle-panel-hero-image"
+                      src={detailImages[0]}
+                      alt=""
+                      aria-hidden="true"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  )}
+                  <div className="vehicle-panel-heading-copy">
+                    <span className="eyebrow">LA SCHEDA</span>
+                    <h2>Dati tecnici e dettagli <span>dell’<em>auto</em></span></h2>
+                    <p className="vehicle-panel-intro">Esplora le informazioni dell’auto per categoria o consulta la scheda completa.</p>
+                  </div>
                 </div>
+                <nav className="vehicle-spec-index" aria-label="Indice della scheda auto">
+                  <span className="vehicle-spec-index-label">Indice rapido</span>
+                  <a href="#vehicle-spec-group-0"><SiteIcon name="car" /><span className="vehicle-spec-index-link-label">Caratteristiche</span></a>
+                  <a href="#vehicle-spec-group-1"><SiteIcon name="engine" /><span className="vehicle-spec-index-link-label">Motore</span></a>
+                  <a href="#vehicle-spec-group-2"><SiteIcon name="speed" /><span className="vehicle-spec-index-link-label">Prestazioni</span></a>
+                  <a href="#vehicle-spec-group-3"><SiteIcon name="consumption" /><span className="vehicle-spec-index-link-label">Consumi</span></a>
+                  <a href="#vehicle-spec-group-4"><SiteIcon name="condition" /><span className="vehicle-spec-index-link-label">Condizioni e manutenzione</span></a>
+                  <a href="#vehicle-spec-group-5"><SiteIcon name={activeVehicle.type === 'buy' ? 'payment' : 'sell'} /><span className="vehicle-spec-index-link-label">{activeVehicle.type === 'buy' ? 'Agevolazioni' : 'Altre informazioni'}</span></a>
+                  <a href="#vehicle-detail-features"><SiteIcon name="check" /><span className="vehicle-spec-index-link-label">Dotazioni</span></a>
+                </nav>
                 <div className="vehicle-description-block">
-                  <h3><SiteIcon name="info" /> Descrizione</h3>
-                  <p className="vehicle-detail-description">{activeVehicle.description}</p>
+                  <div className="vehicle-description-icon" aria-hidden="true"><SiteIcon name="info" /></div>
+                  <div className="vehicle-description-copy">
+                    <h3>Descrizione</h3>
+                    <p className="vehicle-detail-description">{activeVehicle.description}</p>
+                  </div>
+                </div>
+                <div className="vehicle-spec-section-heading">
+                  <span aria-hidden="true" />
+                  <h3>Caratteristiche <em>tecniche</em></h3>
                 </div>
                 <div className="vehicle-spec-groups">
                   {[
                     {
                       icon: 'car',
                       title: 'Caratteristiche del veicolo',
+                      description: 'Tipo di carrozzeria, configurazione e capacità del veicolo.',
                       specs: [
                         { icon: 'registration', label: 'Prima immatricolazione', value: activeVehicle.firstRegistration },
                         { icon: 'bodyType', label: 'Tipo di veicolo', value: activeVehicle.bodyType },
@@ -9695,6 +11060,7 @@ function App() {
                     {
                       icon: 'engine',
                       title: 'Motore e trasmissione',
+                      description: 'Motorizzazione, alimentazione, cambio e tipo di trazione.',
                       specs: [
                         { icon: 'engine', label: 'Motore', value: activeVehicle.engine },
                         { icon: 'fuel', label: 'Alimentazione', value: activeVehicle.fuel },
@@ -9708,6 +11074,7 @@ function App() {
                     {
                       icon: 'speed',
                       title: 'Prestazioni',
+                      description: 'Valori dichiarati per coppia, accelerazione e velocità massima.',
                       specs: [
                         { icon: 'torque', label: 'Coppia', value: activeVehicle.torqueNm != null ? `${kilometer.format(activeVehicle.torqueNm)} Nm` : '' },
                         { icon: 'acceleration', label: 'Accelerazione 0–100 km/h', value: activeVehicle.accelerationSeconds != null ? `${vehiclePowerNumber.format(activeVehicle.accelerationSeconds)} s` : '' },
@@ -9717,6 +11084,7 @@ function App() {
                     {
                       icon: 'consumption',
                       title: 'Consumi ed emissioni',
+                      description: 'Consumi dichiarati e informazioni relative alle emissioni.',
                       specs: [
                         { icon: 'consumption', label: 'Consumo combinato', value: activeVehicle.consumptionCombined != null ? `${vehiclePowerNumber.format(activeVehicle.consumptionCombined)} ${activeVehicle.consumptionUnit || 'l/100 km'}` : '' },
                         { icon: 'emissions', label: 'Classe emissioni', value: activeVehicle.emissionsClass },
@@ -9726,6 +11094,7 @@ function App() {
                     {
                       icon: 'condition',
                       title: 'Condizioni, manutenzione e documenti',
+                      description: 'Stato del veicolo, copertura e riferimenti di manutenzione e documentazione.',
                       specs: [
                         { icon: 'condition', label: 'Condizioni', value: activeVehicle.condition },
                         { icon: 'owner', label: 'Proprietari precedenti', value: activeVehicle.previousOwners != null ? activeVehicle.previousOwners : '' },
@@ -9754,6 +11123,7 @@ function App() {
                     ...(activeVehicle.type === 'buy' ? [{
                       icon: 'payment',
                       title: 'Agevolazioni e altre informazioni',
+                      description: 'Dettagli sulle opzioni di acquisto e sulle informazioni commerciali.',
                       specs: [
                         {
                           icon: 'payment',
@@ -9767,11 +11137,17 @@ function App() {
                     }] : [{
                       icon: 'sell',
                       title: 'Altre informazioni',
+                      description: 'Informazioni aggiuntive associate a questa vettura.',
                       specs: [{ icon: 'sell', label: 'Etichetta', value: activeVehicle.label }],
                     }]),
-                  ].map((group) => (
-                    <section className="vehicle-spec-group" key={group.title} aria-label={group.title}>
-                      <h4><SiteIcon name={group.icon} />{group.title}</h4>
+                  ].map((group, index) => (
+                    <section className="vehicle-spec-group" id={`vehicle-spec-group-${index}`} key={group.title} aria-label={group.title}>
+                      <h4>
+                        <SiteIcon name={group.icon} />
+                        <span className="vehicle-spec-group-title">{group.title}</span>
+                        <span className="vehicle-spec-count">{group.specs.length} {group.specs.length === 1 ? 'voce' : 'voci'}</span>
+                      </h4>
+                      <p className="vehicle-spec-group-description">{group.description}</p>
                       <dl className="vehicle-spec-list">
                         {group.specs.map(({ icon, label, value, chips }) => (
                           <div className={chips ? 'vehicle-warranty-spec' : undefined} key={label}>
@@ -9798,10 +11174,12 @@ function App() {
                 )}
                 <div className="vehicle-maintenance-history">
                   <h2><SiteIcon name="warranty" /> Storico manutenzione</h2>
-                  <p>{activeVehicle.maintenanceHistory || <span className="is-unspecified">Non specificato</span>}</p>
+                  <p className="vehicle-section-caption vehicle-maintenance-intro">Interventi e riferimenti di manutenzione disponibili per questo veicolo.</p>
+                  <p className="vehicle-maintenance-value">{activeVehicle.maintenanceHistory || <span className="is-unspecified">Non specificato</span>}</p>
                 </div>
-                <section className="vehicle-detail-features" aria-labelledby="vehicle-features-title">
-                  <h2 id="vehicle-features-title">Dotazioni</h2>
+                <section className="vehicle-detail-features" id="vehicle-detail-features" aria-labelledby="vehicle-features-title">
+                  <h2 id="vehicle-features-title"><SiteIcon name="check" /> Dotazioni</h2>
+                  <p className="vehicle-section-caption vehicle-features-intro">Equipaggiamenti e accessori riportati nella scheda dell’auto.</p>
                   {(activeVehicle.features || []).length > 0 ? (
                     <ul>
                       {activeVehicle.features.map((feature) => (
@@ -10311,6 +11689,7 @@ function App() {
                   <div className="admin-heading-actions">
                     <button className="button button-outline" type="button" onClick={() => navigateToPath('/admin/inventory')}>Gestione inventario</button>
                     <button className="button button-outline" type="button" onClick={() => navigateToHome('inventory')}>Torna al sito</button>
+                    <AdminReportExportButton reportType="messages" />
                   </div>
                 </div>
                 <section className="admin-submissions" aria-labelledby="admin-submissions-title">
@@ -10397,7 +11776,10 @@ function App() {
                 </section>
 
                 <section className="admin-sales" aria-labelledby="admin-sales-title">
-                  <div className="admin-submissions-heading"><div><p className="eyebrow">ACQUISTI CONFERMATI</p><h2 id="admin-sales-title">Storico vendite <span>{adminSales.length}</span></h2></div></div>
+                  <div className="admin-submissions-heading">
+                    <div><p className="eyebrow">ACQUISTI CONFERMATI</p><h2 id="admin-sales-title">Storico vendite <span>{adminSales.length}</span></h2></div>
+                    <AdminReportExportButton reportType="sales" />
+                  </div>
                   {adminSalesError && <p className="form-error" role="alert">{adminSalesError}</p>}
                   {!adminSalesError && adminSales.length === 0 && <p className="admin-submissions-empty">Non risultano acquisti confermati nello storico vendite.</p>}
                   <div className="admin-sales-list">
@@ -10551,6 +11933,7 @@ function App() {
                   <div className="admin-heading-actions">
                     <button className="button button-outline" type="button" onClick={() => navigateToPath('/admin/inventory')}>Inventario</button>
                     <button className="button button-outline" type="button" onClick={() => navigateToPath('/admin/messages')}>Messaggi e vendite</button>
+                    <AdminReportExportButton reportType="rentals" />
                   </div>
                 </div>
                 <AdminRentalManager
@@ -10587,6 +11970,7 @@ function App() {
                   </div>
                   <div className="admin-heading-actions">
                     <button className="button button-outline" type="button" onClick={() => navigateToPath('/admin/inventory')}>Inventario</button>
+                    <AdminReportExportButton reportType="visits" />
                   </div>
                 </div>
                 <AdminVisitRequestsPanel
@@ -10611,6 +11995,66 @@ function App() {
               />
             )}
           </AdminMotionSection>
+        ) : isAdminLegalPage ? (
+          user?.role === 'admin' ? (
+            <AdminLegalDocumentsPage />
+          ) : (
+            <section className="admin-page section-wrap" aria-labelledby="admin-access-title">
+              <AdminAccessPanel
+                area="DOCUMENTI LEGALI"
+                title={<>Accesso <em>riservato.</em></>}
+                description="Accedi con un account amministratore per modificare i documenti pubblicati sul sito."
+                accountNote={user ? 'L’account attualmente collegato non dispone dei permessi di amministratore.' : ''}
+                onLogin={() => { setAuthMode('login'); setAuthError(''); }}
+                onBack={() => navigateToHome('inventory')}
+              />
+            </section>
+          )
+        ) : isAdminSecurityAuditPage ? (
+          user?.role === 'admin' ? (
+            <AdminSecurityAuditPage />
+          ) : (
+            <section className="admin-page section-wrap" aria-labelledby="admin-access-title">
+              <AdminAccessPanel
+                area="AUDIT SICUREZZA"
+                title={<>Accesso <em>riservato.</em></>}
+                description="Accedi con un account amministratore per consultare gli eventi di sicurezza recenti."
+                accountNote={user ? 'L’account attualmente collegato non dispone dei permessi di amministratore.' : ''}
+                onLogin={() => { setAuthMode('login'); setAuthError(''); }}
+                onBack={() => navigateToHome('inventory')}
+              />
+            </section>
+          )
+        ) : isAdminLogsPage ? (
+          user?.role === 'admin' ? (
+            <AdminActivityLogsPage />
+          ) : (
+            <section className="admin-page section-wrap" aria-labelledby="admin-access-title">
+              <AdminAccessPanel
+                area="ATTIVITÀ AMMINISTRATIVE"
+                title={<>Accesso <em>riservato.</em></>}
+                description="Accedi con un account amministratore per consultare il registro delle operazioni."
+                accountNote={user ? 'L’account attualmente collegato non dispone dei permessi di amministratore.' : ''}
+                onLogin={() => { setAuthMode('login'); setAuthError(''); }}
+                onBack={() => navigateToHome('inventory')}
+              />
+            </section>
+          )
+        ) : isAdminAccountsPage ? (
+          user?.role === 'admin' ? (
+            <AdminAccountsPage />
+          ) : (
+            <section className="admin-page section-wrap" aria-labelledby="admin-access-title">
+              <AdminAccessPanel
+                area="ACCOUNT AMMINISTRATORI"
+                title={<>Accesso <em>riservato.</em></>}
+                description="Accedi con un account amministratore per gestire gli accessi separati della dashboard."
+                accountNote={user ? 'L’account attualmente collegato non dispone dei permessi di amministratore.' : ''}
+                onLogin={() => { setAuthMode('login'); setAuthError(''); }}
+                onBack={() => navigateToHome('inventory')}
+              />
+            </section>
+          )
         ) : isAdminSettingsPage || isAdminSecurityPage ? (
           user?.role === 'admin' ? (
             <AdminUtilityPage
@@ -10641,30 +12085,27 @@ function App() {
             </section>
           )
         ) : isAccountPage ? (
-          <section className="account-page section-wrap" aria-labelledby="account-title">
+          <section className={`account-page section-wrap${user?.role === 'user' ? '' : ' account-page-access-denied'}`} aria-labelledby="account-title">
             {user?.role === 'user' ? (
               <>
-                <div className="account-page-heading">
-                  <div className="account-page-welcome">
-                    <p className="eyebrow">LA TUA AREA PERSONALE</p>
-                    <h1 id="account-title">{newlyRegisteredUser ? 'Benvenuto' : 'Bentornato'}, <em>{user.name}.</em></h1>
-                    <p>Proposte, conversazioni e acquisti: tutto quello che conta, in un unico spazio.</p>
-                  </div>
-                  <div className="account-header-actions">
-                    <div className="account-profile-summary" aria-label="Account collegato">
-                      <span className="account-profile-initials" aria-hidden="true">{user.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}</span>
-                      <span className="account-profile-details"><strong>{user.name}</strong><small>{user.email}</small></span>
-                      <span className="account-profile-indicator" aria-hidden="true" />
-                    </div>
-                    <a className="account-header-catalog-link" href="/catalogo" onClick={(event) => { event.preventDefault(); navigateToHome('inventory'); }}>Esplora le auto <ArrowUpRight aria-hidden="true" /></a>
-                  </div>
-                </div>
-                <nav className="account-page-nav" aria-label="Sezioni area personale">
-                  <button className={activeAccountSection === 'activity' ? 'is-active' : ''} type="button" aria-pressed={activeAccountSection === 'activity'} onClick={() => selectAccountSection('activity')}><span className="account-nav-icon"><SiteIcon name="eye" /></span><span><strong>Auto seguite</strong><small>Viste di recente</small></span></button>
-                  <button className={activeAccountSection === 'priceOffers' ? 'is-active' : ''} type="button" aria-pressed={activeAccountSection === 'priceOffers'} onClick={() => selectAccountSection('priceOffers')}><span className="account-nav-icon"><SiteIcon name="price" /></span><span><strong>Proposte prezzo</strong><small>Le tue offerte</small></span></button>
-                  <button className={activeAccountSection === 'sellRequests' ? 'is-active' : ''} type="button" aria-pressed={activeAccountSection === 'sellRequests'} onClick={() => selectAccountSection('sellRequests')}><span className="account-nav-icon"><SiteIcon name="sell" /></span><span><strong>Le tue proposte</strong><small>Valutazioni e messaggi</small></span></button>
-                  <button className={activeAccountSection === 'purchaseRequests' ? 'is-active' : ''} type="button" aria-pressed={activeAccountSection === 'purchaseRequests'} onClick={() => selectAccountSection('purchaseRequests')}><span className="account-nav-icon"><SiteIcon name="car" /></span><span><strong>Richieste acquisto</strong><small>Auto che vuoi comprare</small></span></button>
-                  <button className={activeAccountSection === 'purchases' ? 'is-active' : ''} type="button" aria-pressed={activeAccountSection === 'purchases'} onClick={() => selectAccountSection('purchases')}><span className="account-nav-icon"><SiteIcon name="check" /></span><span><strong>I tuoi acquisti</strong><small>Recensioni verificate</small></span></button>
+                <h1 className="visually-hidden" id="account-title">Area personale</h1>
+                <button
+                  className="account-sidebar-toggle"
+                  type="button"
+                  aria-expanded={accountSidebarOpen}
+                  aria-controls="account-sections-nav"
+                  aria-label={accountSidebarOpen ? 'Chiudi sezioni' : 'Apri sezioni'}
+                  onClick={() => setAccountSidebarOpen((open) => !open)}
+                >
+                  {accountSidebarOpen ? <X size={20} aria-hidden="true" /> : <PanelLeftOpen size={20} aria-hidden="true" />}
+                </button>
+                <nav id="account-sections-nav" className={`account-page-nav${accountSidebarOpen ? ' is-open' : ''}`} aria-label="Sezioni area personale">
+                  <button className={activeAccountSection === 'activity' ? 'is-active' : ''} type="button" aria-pressed={activeAccountSection === 'activity'} onClick={() => selectAccountSection('activity')}><span className="account-nav-icon"><SiteIcon name="eye" /></span><span><strong>Auto seguite</strong></span></button>
+                  <button className={activeAccountSection === 'priceOffers' ? 'is-active' : ''} type="button" aria-pressed={activeAccountSection === 'priceOffers'} onClick={() => selectAccountSection('priceOffers')}><span className="account-nav-icon"><SiteIcon name="price" /></span><span><strong>Proposte prezzo</strong></span></button>
+                  <button className={activeAccountSection === 'sellRequests' ? 'is-active' : ''} type="button" aria-pressed={activeAccountSection === 'sellRequests'} onClick={() => selectAccountSection('sellRequests')}><span className="account-nav-icon"><SiteIcon name="sell" /></span><span><strong>Le tue proposte</strong></span></button>
+                  <button className={activeAccountSection === 'purchaseRequests' ? 'is-active' : ''} type="button" aria-pressed={activeAccountSection === 'purchaseRequests'} onClick={() => selectAccountSection('purchaseRequests')}><span className="account-nav-icon"><SiteIcon name="car" /></span><span><strong>Richieste acquisto</strong></span></button>
+                  <button className={activeAccountSection === 'purchases' ? 'is-active' : ''} type="button" aria-pressed={activeAccountSection === 'purchases'} onClick={() => selectAccountSection('purchases')}><span className="account-nav-icon"><SiteIcon name="check" /></span><span><strong>I tuoi acquisti</strong></span></button>
+                  <button className={activeAccountSection === 'privacy' ? 'is-active' : ''} type="button" aria-pressed={activeAccountSection === 'privacy'} onClick={() => selectAccountSection('privacy')}><span className="account-nav-icon"><ShieldCheck size={16} aria-hidden="true" /></span><span><strong>Privacy e account</strong></span></button>
                 </nav>
                 {activeAccountSection === 'activity' && <section className="customer-purchases customer-car-activity" id="customer-car-activity" aria-labelledby="customer-car-activity-title">
                   <div className="customer-purchases-heading">
@@ -10785,6 +12226,23 @@ function App() {
                   {!myPurchasesError && myPurchases.length > 0 && visibleCustomerPurchases.length === 0 && <p className="customer-purchases-empty">Nessun acquisto corrisponde al filtro selezionato.</p>}
                   {visibleCustomerPurchases.map((purchase) => <article className="customer-purchase" key={purchase.id}><ProgressiveImage className="customer-purchase-image" src={purchase.images[0]} alt="" /><div className="customer-purchase-info"><h3>{purchase.year} {purchase.make} {purchase.model}</h3><small>Acquistata il {new Date(purchase.soldAt).toLocaleDateString('it-IT')}</small>{purchase.review ? <p className="customer-review-complete">Hai già recensito quest’auto · {'★'.repeat(purchase.review.rating)}</p> : <form className="customer-review-form" onSubmit={(event) => handleCustomerReviewSubmit(event, purchase)}><label>La tua valutazione<SelectField name="rating" defaultValue="5" required><option value="5">★★★★★ · Eccellente</option><option value="4">★★★★☆ · Molto buona</option><option value="3">★★★☆☆ · Buona</option><option value="2">★★☆☆☆ · Da migliorare</option><option value="1">★☆☆☆☆ · Insoddisfacente</option></SelectField></label><label>Racconta la tua esperienza<textarea name="text" rows="3" minLength="10" maxLength="500" placeholder={`Com’è stata l’esperienza con ${businessName}? (massimo 500 caratteri)`} required /></label><label className="review-name-consent"><input name="publishName" type="checkbox" required /><span>Acconsento a pubblicare la recensione con il mio nome (solo nome).</span></label>{reviewStatus.saleId === purchase.id && reviewStatus.error && <p className="form-error" role="alert">{reviewStatus.error}</p>}{reviewStatus.saleId === purchase.id && reviewStatus.message && <p className="form-success" role="status">{reviewStatus.message}</p>}<button className="button button-accent button-small" type="submit" disabled={reviewBusy}>{reviewBusy ? 'Pubblicazione…' : 'Pubblica recensione'} <span aria-hidden="true">↗</span></button></form>}</div></article>)}
                 </section>}
+                {activeAccountSection === 'privacy' && (
+                  <section className="customer-purchases account-privacy-section" aria-labelledby="account-privacy-title">
+                    <div className="customer-purchases-heading">
+                      <p className="eyebrow">I TUOI DATI</p>
+                      <h2 id="account-privacy-title">Privacy e account</h2>
+                      <p>Gestisci l’accesso, le tue preferenze e i dati del tuo account in un unico posto.</p>
+                    </div>
+                    <CustomerAccountSettings user={user} onUserUpdated={setUser} onCookieSettings={openCookieSettings} onNavigate={navigateToPath} onDeleted={() => {
+                      try {
+                        window.localStorage.removeItem(`pelusogroup-viewed-${user.id}`);
+                      } catch (error) {
+                        console.error('Could not remove local vehicle history:', error);
+                      }
+                      handleLogout();
+                    }} />
+                  </section>
+                )}
               </>
             ) : (
               <div className="admin-access-denied"><p className="eyebrow">AREA PERSONALE</p><h1>Accedi per continuare.</h1><p>Messaggi e acquisti sono visibili solo dal tuo account cliente.</p><button className="button button-accent" type="button" onClick={() => { setAuthMode('login'); setAuthError(''); }}>Accedi</button></div>
@@ -10892,6 +12350,71 @@ function App() {
           <div className="hero-caption"><span>DAL 19 MARZO 2017</span><span>AL TUO FIANCO, A CELLOLE</span></div>
           <a className="scroll-cue" href="/catalogo" onClick={(event) => { event.preventDefault(); goToInventory('all'); }}><span /> Scopri l’inventario</a>
         </section>
+
+        {(homeFeaturedVehicles.buy.length > 0 || homeFeaturedVehicles.rent.length > 0) && (
+          <motion.section
+            className="home-featured-inventory section-wrap"
+            aria-labelledby="home-featured-title"
+            initial={{ opacity: 0, y: 22 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.12 }}
+            transition={{ duration: 0.62, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <div className="home-featured-heading">
+              <div>
+                <p className="eyebrow">IN VETRINA</p>
+                <h2 id="home-featured-title">Auto disponibili <em>ora.</em></h2>
+              </div>
+              <p>Scopri alcune delle vetture in vendita e a noleggio. Tutte le auto sono nel catalogo completo.</p>
+            </div>
+            <div className="home-featured-groups">
+              {homeFeaturedVehicles.buy.length > 0 && (
+                <section className="home-featured-group catalog-page-section" aria-labelledby="home-featured-buy-title">
+                  <div className="home-featured-group-heading">
+                    <h3 id="home-featured-buy-title">In vendita</h3>
+                    <button type="button" onClick={() => goToInventory('buy')}>Tutte le auto in vendita <ArrowRight aria-hidden="true" /></button>
+                  </div>
+                  <div className="vehicle-grid home-featured-grid">
+                    {homeFeaturedVehicles.buy.map((vehicle) => (
+                      <CatalogVehicleCard
+                        key={vehicle.id}
+                        vehicle={vehicle}
+                        onOpen={openVehicle}
+                        onSelect={addToCart}
+                        isLoggedIn={Boolean(user)}
+                        isSelected={cart.includes(vehicle.id)}
+                        purchaseRequestCount={publicVehicleMetricsById.get(vehicle.id)?.purchaseRequests || 0}
+                        onDiscountExpire={() => setDiscountExpiryVersion((version) => version + 1)}
+                      />
+                    ))}
+                  </div>
+                </section>
+              )}
+              {homeFeaturedVehicles.rent.length > 0 && (
+                <section className="home-featured-group catalog-page-section" aria-labelledby="home-featured-rent-title">
+                  <div className="home-featured-group-heading">
+                    <h3 id="home-featured-rent-title">A noleggio</h3>
+                    <button type="button" onClick={() => goToInventory('rent')}>Tutte le auto a noleggio <ArrowRight aria-hidden="true" /></button>
+                  </div>
+                  <div className="vehicle-grid home-featured-grid">
+                    {homeFeaturedVehicles.rent.map((vehicle) => (
+                      <CatalogVehicleCard
+                        key={vehicle.id}
+                        vehicle={vehicle}
+                        onOpen={openVehicle}
+                        onSelect={addToCart}
+                        isLoggedIn={Boolean(user)}
+                        isSelected={cart.includes(vehicle.id)}
+                        purchaseRequestCount={publicVehicleMetricsById.get(vehicle.id)?.purchaseRequests || 0}
+                        onDiscountExpire={() => setDiscountExpiryVersion((version) => version + 1)}
+                      />
+                    ))}
+                  </div>
+                </section>
+              )}
+            </div>
+          </motion.section>
+        )}
 
         {!isCatalogPage && <motion.section
           className="popular-brands section-wrap"
@@ -11203,9 +12726,63 @@ function App() {
               <RefreshCw size={14} aria-hidden="true" />
               Azzera filtri
             </button>
+            <button
+              className={`catalog-extra-filters-toggle${catalogExtraFiltersOpen ? ' is-open' : ''}`}
+              type="button"
+              aria-expanded={catalogExtraFiltersOpen}
+              aria-controls="catalog-extra-filters"
+              onClick={() => setCatalogExtraFiltersOpen((open) => !open)}
+            >
+              <span className="catalog-extra-filters-toggle-label"><ListFilter size={15} aria-hidden="true" />{catalogExtraFiltersOpen ? 'Nascondi filtri aggiuntivi' : 'Mostra altri filtri'}</span>
+              {[modelFilter, colorFilter, doorsFilter, drivetrainFilter, noviceDriverFilter].filter(Boolean).length > 0 && (
+                <span className="catalog-extra-filter-count">
+                  Filtri attivi: {[modelFilter, colorFilter, doorsFilter, drivetrainFilter, noviceDriverFilter].filter(Boolean).length}
+                </span>
+              )}
+              <Plus className="catalog-extra-filters-toggle-icon" size={16} aria-hidden="true" />
+            </button>
+            <div className="catalog-extra-filters" id="catalog-extra-filters" hidden={!catalogExtraFiltersOpen}>
+              <label className="filter-control">
+                <span><SiteIcon name="car" /> Modello</span>
+                <SelectField value={modelFilter} onChange={(event) => setModelFilter(event.target.value)}>
+                  <option value="">Tutti i modelli</option>
+                  {models.map((model) => <option key={model} value={model}>{model}</option>)}
+                </SelectField>
+              </label>
+              <label className="filter-control">
+                <span><SiteIcon name="color" /> Colore</span>
+                <SelectField value={colorFilter} onChange={(event) => setColorFilter(event.target.value)}>
+                  <option value="">Tutti i colori</option>
+                  {colors.map((color) => <option key={color} value={color}>{color}</option>)}
+                </SelectField>
+              </label>
+              <label className="filter-control">
+                <span><SiteIcon name="doors" /> Porte</span>
+                <SelectField value={doorsFilter} onChange={(event) => setDoorsFilter(event.target.value)}>
+                  <option value="">Qualsiasi numero</option>
+                  {doorOptions.map((doors) => <option key={doors} value={doors}>{doors} {doors === 1 ? 'porta' : 'porte'}</option>)}
+                </SelectField>
+              </label>
+              <label className="filter-control">
+                <span><SiteIcon name="drivetrain" /> Trazione</span>
+                <SelectField value={drivetrainFilter} onChange={(event) => setDrivetrainFilter(event.target.value)}>
+                  <option value="">Tutte</option>
+                  {drivetrainOptions.map((drivetrain) => <option key={drivetrain} value={drivetrain}>{drivetrain}</option>)}
+                </SelectField>
+              </label>
+              <label className="filter-control">
+                <span><SiteIcon name="novice" /> Neopatentati</span>
+                <SelectField value={noviceDriverFilter} onChange={(event) => setNoviceDriverFilter(event.target.value)}>
+                  <option value="">Indifferente</option>
+                  <option value="yes">Idonea</option>
+                  <option value="no">Non idonea</option>
+                  <option value="unknown">Non verificata</option>
+                </SelectField>
+              </label>
+            </div>
             <label className="filter-control">
               <span><SiteIcon name="car" /> Marca</span>
-              <SelectField value={makeFilter} onChange={(event) => setMakeFilter(event.target.value)}>
+              <SelectField value={makeFilter} onChange={(event) => { setMakeFilter(event.target.value); setModelFilter(''); }}>
                 <option value="all">Tutte le marche</option>
                 {makes.map((make) => <option key={make} value={make}>{make}</option>)}
               </SelectField>
@@ -11303,93 +12880,18 @@ function App() {
               <InventorySkeletonCards />
             ) : inventoryError ? (
               <ContentErrorState title="Non riusciamo a caricare le auto" message={inventoryError} onRetry={() => setInventoryReloadKey((key) => key + 1)} />
-            ) : catalogPageVehicles.map((vehicle) => {
-              const power = getVehiclePowerDetails(vehicle);
-              const engine = vehicle.engine || (vehicle.engineDisplacementCc
-                ? `${kilometer.format(vehicle.engineDisplacementCc)} cm³`
-                : '—');
-              const formattedPower = power.cvValue
-                ? `${power.cv} CV${power.kw ? ` · ${power.kw} kW` : ''}`
-                : power.cv || '—';
-
-              return (
-                <article className="vehicle-card" key={vehicle.id}>
-                  <CatalogVehicleImageGallery
-                    vehicle={vehicle}
-                    onOpen={openVehicle}
-                    linkLabel={`Dettagli ${vehicle.make} ${vehicle.model}, ${kilometer.format(vehicle.viewCount || 0)} visualizzazioni${vehicle.type === 'buy' ? `, ${kilometer.format(publicVehicleMetricsById.get(vehicle.id)?.purchaseRequests || 0)} richieste d'acquisto` : ''}`}
-                  />
-                  <span className="vehicle-type">{vehicle.type === 'rent' ? 'NOLEGGIO' : 'IN VENDITA'}</span>
-                  <div className="vehicle-info">
-                    <div className="vehicle-title-row">
-                      <div>
-                        <p className="vehicle-make">{vehicle.make} · {vehicle.year} · {vehicle.color}</p>
-                        <h3><a href={`/auto/${vehicle.id}`} onClick={(event) => { event.preventDefault(); openVehicle(vehicle.id); }}>{vehicle.model}</a></h3>
-                      </div>
-                    </div>
-                    <div className="vehicle-meta">
-                      <span>{kilometer.format(vehicle.mileageKm)} km</span>
-                      <span className="meta-divider" />
-                      <span>{vehicle.bodyType || (vehicle.type === 'rent' ? 'Noleggio' : 'Disponibile subito')}</span>
-                    </div>
-                    <div className="vehicle-engagement" aria-label={`Statistiche ${vehicle.make} ${vehicle.model}`}>
-                      <span className="vehicle-views-count">
-                        <SiteIcon name="eye" /> {kilometer.format(vehicle.viewCount || 0)} visualizzazioni
-                      </span>
-                      {vehicle.type === 'buy' && (
-                        <span><SiteIcon name="people" /> {kilometer.format(publicVehicleMetricsById.get(vehicle.id)?.purchaseRequests || 0)} richieste</span>
-                      )}
-                    </div>
-                    <dl className="catalog-vehicle-specs" aria-label={`Specifiche ${vehicle.make} ${vehicle.model}`}>
-                      <div>
-                        <dt className="visually-hidden">Alimentazione</dt>
-                        <dd><SiteIcon name="fuel" /><span>{vehicle.fuel || '—'}</span></dd>
-                      </div>
-                      <div>
-                        <dt className="visually-hidden">Cambio</dt>
-                        <dd><SiteIcon name="transmission" /><span>{vehicle.transmission || '—'}</span></dd>
-                      </div>
-                      <div>
-                        <dt className="visually-hidden">Motore</dt>
-                        <dd><SiteIcon name="engine" /><span>{engine}</span></dd>
-                      </div>
-                      <div>
-                        <dt className="visually-hidden">Potenza</dt>
-                        <dd><SiteIcon name="power" /><span>{formattedPower}</span></dd>
-                      </div>
-                    </dl>
-                    <div className="vehicle-price-row">
-                      <span className="vehicle-price-value">
-                        <VehicleDiscountPrice
-                          vehicle={vehicle}
-                          vatLabel={vehicle.type === 'buy' ? getVehicleVatLabel(vehicle) : null}
-                          showCountdown={false}
-                          onExpire={() => setDiscountExpiryVersion((version) => version + 1)}
-                        />
-                      </span>
-                      <div className="vehicle-actions">
-                        <button className="vehicle-enquire" type="button" onClick={() => openVehicle(vehicle.id)}>
-                          Dettagli <span aria-hidden="true">→</span>
-                        </button>
-                        <button
-                          className={!user
-                            ? 'vehicle-add is-login-required'
-                            : cart.includes(vehicle.id) ? 'vehicle-add is-added' : 'vehicle-add'}
-                          type="button"
-                          aria-label={!user
-                            ? `Accedi per selezionare ${vehicle.model}`
-                            : cart.includes(vehicle.id) ? `${vehicle.model} già nella selezione` : `Aggiungi ${vehicle.model} alla selezione`}
-                          onClick={() => addToCart(vehicle)}
-                        >
-                          <CartIcon className="vehicle-add-icon" />
-                          {!user ? 'Accedi per selezionare' : cart.includes(vehicle.id) ? 'Aggiunta ✓' : '+ Seleziona'}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
+            ) : catalogPageVehicles.map((vehicle) => (
+              <CatalogVehicleCard
+                key={vehicle.id}
+                vehicle={vehicle}
+                onOpen={openVehicle}
+                onSelect={addToCart}
+                isLoggedIn={Boolean(user)}
+                isSelected={cart.includes(vehicle.id)}
+                purchaseRequestCount={publicVehicleMetricsById.get(vehicle.id)?.purchaseRequests || 0}
+                onDiscountExpire={() => setDiscountExpiryVersion((version) => version + 1)}
+              />
+            ))}
             {!inventoryError && filteredVehicles.length === 0 && !inventoryLoading && (
               <div className="empty-results">
                 <strong>{vehicles.length === 0 ? 'Stiamo preparando nuove auto.' : 'Non abbiamo trovato auto con questi filtri.'}</strong>
@@ -11720,6 +13222,28 @@ function App() {
             </div>
           )}
         </motion.section>
+        <motion.section
+          className="home-faq section-wrap"
+          aria-labelledby="home-faq-title"
+          initial={{ opacity: 0, y: 22 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.12 }}
+          transition={{ duration: 0.62, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <div className="home-faq-heading">
+            <p className="eyebrow">DOMANDE FREQUENTI</p>
+            <h2 id="home-faq-title">Scegli con <em>serenità.</em></h2>
+            <p>Acquisto, visite, noleggio e vendita: le risposte essenziali, senza sorprese.</p>
+          </div>
+          <div className="home-faq-list">
+            {HOME_FAQ_ITEMS.map(({ question, answer }) => (
+              <details className="home-faq-item" key={question}>
+                <summary>{question}<span aria-hidden="true">+</span></summary>
+                <p>{answer}</p>
+              </details>
+            ))}
+          </div>
+        </motion.section>
           </>
           </MotionConfig>
         )}
@@ -11769,6 +13293,14 @@ function App() {
             {user?.role === 'admin'
               ? <a href="/admin" onClick={(event) => { event.preventDefault(); navigateToPath('/admin'); }}>Area amministratore</a>
               : <button type="button" onClick={() => { if (!user) { setAuthMode('login'); return; } setCartOpen(true); }}>La mia selezione ({selectedVehicles.length})</button>}
+          </div>
+          <div className="footer-column">
+            <h2>Informazioni</h2>
+            <a href="/privacy" onClick={(event) => { event.preventDefault(); navigateToPath('/privacy'); }}>Privacy Policy</a>
+            <a href="/termini-condizioni" onClick={(event) => { event.preventDefault(); navigateToPath('/termini-condizioni'); }}>Termini e condizioni</a>
+            <a href="/cookie-policy" onClick={(event) => { event.preventDefault(); navigateToPath('/cookie-policy'); }}>Cookie Policy</a>
+            <a href="/note-legali" onClick={(event) => { event.preventDefault(); navigateToPath('/note-legali'); }}>Note legali</a>
+            <a href="/account/privacy" onClick={(event) => { event.preventDefault(); navigateToPath('/account/privacy'); }}>Gestisci account e privacy</a>
           </div>
           {user?.role !== 'admin' && <div className="footer-column footer-contact-column">
             <h2>Parla con noi</h2>
@@ -11887,6 +13419,36 @@ function App() {
         </a>
       )}
 
+      {purchaseRequestStatus.vehicleId === activeVehicle?.id && purchaseRequestStatus.error && (
+        <div className="request-modal-alert" role="alert">
+          <span className="request-modal-alert-icon" aria-hidden="true"><SiteIcon name="info" /></span>
+          <span className="request-modal-alert-message">{purchaseRequestStatus.error}</span>
+          <button
+            className="request-modal-alert-dismiss"
+            type="button"
+            aria-label="Chiudi avviso"
+            onClick={() => setPurchaseRequestStatus((current) => ({ ...current, error: '' }))}
+          >
+            <SiteIcon name="close" />
+          </button>
+        </div>
+      )}
+
+      {visitRequestStatus.vehicleId === activeVehicle?.id && visitRequestStatus.error && (
+        <div className="request-modal-alert" role="alert">
+          <span className="request-modal-alert-icon" aria-hidden="true"><SiteIcon name="info" /></span>
+          <span className="request-modal-alert-message">{visitRequestStatus.error}</span>
+          <button
+            className="request-modal-alert-dismiss"
+            type="button"
+            aria-label="Chiudi avviso"
+            onClick={() => setVisitRequestStatus((current) => ({ ...current, error: '', warning: false }))}
+          >
+            <SiteIcon name="close" />
+          </button>
+        </div>
+      )}
+
       {purchaseRequestModalOpen && activeVehicle?.type === 'buy' && (
         <div
           className="dealer-visit-backdrop"
@@ -11921,20 +13483,30 @@ function App() {
                   Non serve un account: inserisci i tuoi recapiti e ti ricontatteremo per la {activeVehicle.make} {activeVehicle.model}.
                 </p>
               </div>
-              <button
-                className="dealer-visit-modal-close"
-                type="button"
-                aria-label="Chiudi richiesta di acquisto"
-                disabled={purchaseRequestBusy === activeVehicle.id}
-                onClick={() => setPurchaseRequestModalOpen(false)}
-              >
-                <SiteIcon name="close" />
-              </button>
             </header>
             <form
               className="dealer-visit-request-form purchase-request-modal-form"
+              noValidate
               onSubmit={(event) => {
                 event.preventDefault();
+                const form = event.currentTarget;
+                const invalidField = Array.from(form.elements).find((field) => typeof field.checkValidity === 'function' && !field.checkValidity());
+                if (invalidField) {
+                  const fieldMessages = {
+                    firstName: 'Inserisci il nome.',
+                    lastName: 'Inserisci il cognome.',
+                    email: 'Inserisci un indirizzo email valido.',
+                    phone: 'Inserisci un numero di telefono valido.',
+                    termsAccepted: 'Accetta i termini e le condizioni per proseguire.',
+                  };
+                  setPurchaseRequestStatus({
+                    vehicleId: activeVehicle.id,
+                    error: fieldMessages[invalidField.name] || 'Controlla i dati obbligatori prima di proseguire.',
+                    message: '',
+                  });
+                  invalidField.focus();
+                  return;
+                }
                 const formData = new FormData(event.currentTarget);
                 submitPurchaseRequest(activeVehicle, {
                   firstName: formData.get('firstName'),
@@ -11951,64 +13523,76 @@ function App() {
               }}
             >
               <label htmlFor="purchase-request-first-name">
-                <span className="request-field-label"><SiteIcon name="people" /> Nome <span className="required-marker" aria-hidden="true">*</span></span>
-                <input
-                  id="purchase-request-first-name"
-                  name="firstName"
-                  type="text"
-                  autoComplete="given-name"
-                  minLength="1"
-                  maxLength="80"
-                  required
-                  placeholder="Il tuo nome"
-                  value={purchaseRequestFirstName}
-                  onChange={(event) => setPurchaseRequestFirstName(event.target.value)}
-                />
+                <span>Nome <span className="required-marker" aria-hidden="true">*</span></span>
+                <span className="auth-input-wrap">
+                  <SiteIcon className="auth-input-icon" name="people" aria-hidden="true" />
+                  <input
+                    id="purchase-request-first-name"
+                    name="firstName"
+                    type="text"
+                    autoComplete="given-name"
+                    minLength="1"
+                    maxLength="80"
+                    required
+                    placeholder="Il tuo nome"
+                    value={purchaseRequestFirstName}
+                    onChange={(event) => setPurchaseRequestFirstName(event.target.value)}
+                  />
+                </span>
               </label>
               <label htmlFor="purchase-request-last-name">
-                <span className="request-field-label"><SiteIcon name="people" /> Cognome <span className="required-marker" aria-hidden="true">*</span></span>
-                <input
-                  id="purchase-request-last-name"
-                  name="lastName"
-                  type="text"
-                  autoComplete="family-name"
-                  minLength="1"
-                  maxLength="80"
-                  required
-                  placeholder="Il tuo cognome"
-                  value={purchaseRequestLastName}
-                  onChange={(event) => setPurchaseRequestLastName(event.target.value)}
-                />
+                <span>Cognome <span className="required-marker" aria-hidden="true">*</span></span>
+                <span className="auth-input-wrap">
+                  <SiteIcon className="auth-input-icon" name="people" aria-hidden="true" />
+                  <input
+                    id="purchase-request-last-name"
+                    name="lastName"
+                    type="text"
+                    autoComplete="family-name"
+                    minLength="1"
+                    maxLength="80"
+                    required
+                    placeholder="Il tuo cognome"
+                    value={purchaseRequestLastName}
+                    onChange={(event) => setPurchaseRequestLastName(event.target.value)}
+                  />
+                </span>
               </label>
               <label htmlFor="purchase-request-email">
-                <span className="request-field-label"><SiteIcon name="mail" /> Email <span className="required-marker" aria-hidden="true">*</span></span>
-                <input
-                  id="purchase-request-email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  maxLength="254"
-                  required
-                  placeholder="nome@esempio.it"
-                  value={purchaseRequestEmail}
-                  onChange={(event) => setPurchaseRequestEmail(event.target.value)}
-                />
+                <span>Email <span className="required-marker" aria-hidden="true">*</span></span>
+                <span className="auth-input-wrap">
+                  <SiteIcon className="auth-input-icon" name="mail" aria-hidden="true" />
+                  <input
+                    id="purchase-request-email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    maxLength="254"
+                    required
+                    placeholder="nome@esempio.it"
+                    value={purchaseRequestEmail}
+                    onChange={(event) => setPurchaseRequestEmail(event.target.value)}
+                  />
+                </span>
               </label>
               <label htmlFor="purchase-request-phone">
-                <span className="request-field-label"><SiteIcon name="phone" /> Telefono <span className="required-marker" aria-hidden="true">*</span></span>
-                <input
-                  id="purchase-request-phone"
-                  name="phone"
-                  type="tel"
-                  autoComplete="tel"
-                  minLength="6"
-                  maxLength="30"
-                  required
-                  value={purchaseRequestPhone}
-                  onChange={(event) => setPurchaseRequestPhone(event.target.value)}
-                  placeholder="+39 333 123 4567"
-                  aria-describedby="purchase-request-phone-hint"
-                />
+                <span>Telefono <span className="required-marker" aria-hidden="true">*</span></span>
+                <span className="auth-input-wrap">
+                  <SiteIcon className="auth-input-icon" name="phone" aria-hidden="true" />
+                  <input
+                    id="purchase-request-phone"
+                    name="phone"
+                    type="tel"
+                    autoComplete="tel"
+                    minLength="6"
+                    maxLength="30"
+                    required
+                    value={purchaseRequestPhone}
+                    onChange={(event) => setPurchaseRequestPhone(event.target.value)}
+                    placeholder="+39 333 123 4567"
+                    aria-describedby="purchase-request-phone-hint"
+                  />
+                </span>
               </label>
               <small id="purchase-request-phone-hint" className="purchase-request-phone-hint">
                 Obbligatorio per poter inviare la richiesta.
@@ -12026,9 +13610,6 @@ function App() {
                 <span>{purchaseRequestBusy === activeVehicle.id ? 'Invio richiesta…' : 'Richiedi acquisto'}</span>
                 <SiteIcon className="vehicle-action-chevron" name="chevronRight" />
               </button>
-              {purchaseRequestStatus.vehicleId === activeVehicle.id && purchaseRequestStatus.error && (
-                <p className="form-error" role="alert">{purchaseRequestStatus.error}</p>
-              )}
             </form>
           </section>
         </div>
@@ -12068,19 +13649,11 @@ function App() {
                   Non serve un account: scegli quando vedere la {activeVehicle.make} {activeVehicle.model}. Ti contatteremo per confermare.
                 </p>
               </div>
-              <button
-                className="dealer-visit-modal-close"
-                type="button"
-                aria-label="Chiudi richiesta visita"
-                disabled={visitRequestBusy === activeVehicle.id}
-                onClick={() => setVisitRequestModalOpen(false)}
-              >
-                <SiteIcon name="close" />
-              </button>
             </header>
             <form
               className="dealer-visit-request-form"
               key={activeVehicle.id}
+              noValidate
               onSubmit={(event) => submitVisitRequest(event, activeVehicle)}
               onChange={() => {
                 if (visitRequestStatus.vehicleId === activeVehicle.id && (visitRequestStatus.error || visitRequestStatus.message)) {
@@ -12089,24 +13662,42 @@ function App() {
               }}
             >
               <div className="dealer-visit-date-fields">
-                <label><span className="request-field-label"><SiteIcon name="calendar" /> Giorno</span>
-                  <input name="visitDate" type="date" min={todayInBusinessTimeZone} required />
+                <label><span>Giorno</span>
+                  <span className="auth-input-wrap">
+                    <SiteIcon className="auth-input-icon" name="calendar" aria-hidden="true" />
+                    <input name="visitDate" type="date" min={todayInBusinessTimeZone} required />
+                  </span>
                 </label>
-                <label><span className="request-field-label"><SiteIcon name="clock" /> Ora (fuso della concessionaria)</span>
-                  <input name="visitTime" type="time" required />
+                <label><span>Orario</span>
+                  <span className="auth-input-wrap">
+                    <SiteIcon className="auth-input-icon" name="clock" aria-hidden="true" />
+                    <input name="visitTime" type="time" required />
+                  </span>
                 </label>
               </div>
-              <label><span className="request-field-label"><SiteIcon name="people" /> Nome e cognome</span>
-                <input name="name" autoComplete="name" minLength="2" maxLength="80" defaultValue={user?.name || ''} placeholder="Il tuo nome e cognome" required />
+              <label><span>Nome e cognome</span>
+                <span className="auth-input-wrap">
+                  <SiteIcon className="auth-input-icon" name="people" aria-hidden="true" />
+                  <input name="name" autoComplete="name" minLength="2" maxLength="80" defaultValue={user?.name || ''} placeholder="Il tuo nome e cognome" required />
+                </span>
               </label>
-              <label><span className="request-field-label"><SiteIcon name="mail" /> Email</span>
-                <input name="email" type="email" autoComplete="email" maxLength="254" defaultValue={user?.email || ''} placeholder="nome@esempio.it" required />
+              <label><span>Email</span>
+                <span className="auth-input-wrap">
+                  <SiteIcon className="auth-input-icon" name="mail" aria-hidden="true" />
+                  <input name="email" type="email" autoComplete="email" maxLength="254" defaultValue={user?.email || ''} placeholder="nome@esempio.it" required />
+                </span>
               </label>
-              <label><span className="request-field-label"><SiteIcon name="phone" /> Telefono</span>
-                <input name="phone" type="tel" autoComplete="tel" minLength="6" maxLength="30" placeholder="+39 333 123 4567" required />
+              <label><span>Telefono</span>
+                <span className="auth-input-wrap">
+                  <SiteIcon className="auth-input-icon" name="phone" aria-hidden="true" />
+                  <input name="phone" type="tel" autoComplete="tel" minLength="6" maxLength="30" placeholder="+39 333 123 4567" required />
+                </span>
               </label>
-              <label><span className="request-field-label"><SiteIcon name="info" /> Note <span className="rental-optional-label">facoltative</span></span>
-                <textarea name="message" rows="2" maxLength="1000" placeholder="Aggiungi un messaggio per il concessionario." />
+              <label><span>Note <span className="rental-optional-label">facoltative</span></span>
+                <span className="auth-input-wrap auth-textarea-wrap">
+                  <SiteIcon className="auth-input-icon" name="info" aria-hidden="true" />
+                  <textarea name="message" rows="2" maxLength="1000" placeholder="Aggiungi un messaggio per il concessionario." />
+                </span>
               </label>
               <label className="request-terms-consent">
                 <input name="termsAccepted" type="checkbox" required />
@@ -12117,7 +13708,6 @@ function App() {
                 <span>{visitRequestBusy === activeVehicle.id ? 'Invio richiesta…' : 'Richiedi visita'}</span>
                 <SiteIcon className="vehicle-action-chevron" name="chevronRight" />
               </button>
-              {visitRequestStatus.vehicleId === activeVehicle.id && visitRequestStatus.error && <p className="form-error" role="alert">{visitRequestStatus.error}</p>}
             </form>
           </section>
         </div>
@@ -12268,10 +13858,9 @@ function App() {
                 </label>
               ) : authMode === 'signup' && (
                 <label>
-                  <span className="auth-field-label">Nome e cognome</span>
                   <span className="auth-input-wrap">
                     <UserRound className="auth-input-icon" aria-hidden="true" />
-                    <input name="name" type="text" autoComplete="name" minLength="2" maxLength="80" aria-invalid={Boolean(authTouchedFields.name && authFieldErrors.name)} aria-describedby={authTouchedFields.name && authFieldErrors.name ? 'auth-name-error' : undefined} required />
+                    <input name="name" type="text" autoComplete="name" minLength="2" maxLength="80" placeholder="Nome e cognome" aria-label="Nome e cognome" aria-invalid={Boolean(authTouchedFields.name && authFieldErrors.name)} aria-describedby={authTouchedFields.name && authFieldErrors.name ? 'auth-name-error' : undefined} required />
                   </span>
                   {authTouchedFields.name && authFieldErrors.name && <span className="auth-field-error" id="auth-name-error" role="alert">{authFieldErrors.name}</span>}
                 </label>
@@ -12279,7 +13868,6 @@ function App() {
               {!adminPinRequired && (
                 <>
                   <label>
-                    <span className="auth-field-label">{authMode === 'signup' ? 'Indirizzo email' : 'Nome utente o indirizzo email'}</span>
                     <span className="auth-input-wrap">
                       <Mail className="auth-input-icon" aria-hidden="true" />
                       <input
@@ -12287,7 +13875,8 @@ function App() {
                         type={authMode === 'signup' ? 'email' : 'text'}
                         autoComplete={authMode === 'signup' ? 'email' : 'username'}
                         maxLength="254"
-                        placeholder={authMode === 'signup' ? 'nome@esempio.it' : 'Email'}
+                        placeholder={authMode === 'signup' ? 'Email' : 'Email o username'}
+                        aria-label={authMode === 'signup' ? 'Email' : 'Email o username'}
                         aria-invalid={Boolean(authTouchedFields.email && authFieldErrors.email)}
                         aria-describedby={authTouchedFields.email && authFieldErrors.email ? 'auth-email-error' : undefined}
                         required
@@ -12296,10 +13885,9 @@ function App() {
                     {authTouchedFields.email && authFieldErrors.email && <span className="auth-field-error" id="auth-email-error" role="alert">{authFieldErrors.email}</span>}
                   </label>
                   <label>
-                    <span className="auth-field-label">Password</span>
                     <span className="password-input-wrap auth-input-wrap">
                       <LockKeyhole className="auth-input-icon" aria-hidden="true" />
-                      <input name="password" type={passwordVisible ? 'text' : 'password'} autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'} minLength={authMode === 'signup' ? '8' : undefined} maxLength="72" aria-invalid={Boolean(authTouchedFields.password && authFieldErrors.password)} aria-describedby={authTouchedFields.password && authFieldErrors.password ? 'auth-password-error' : undefined} required />
+                      <input name="password" type={passwordVisible ? 'text' : 'password'} autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'} minLength={authMode === 'signup' ? '8' : undefined} maxLength="72" placeholder="Password" aria-label="Password" aria-invalid={Boolean(authTouchedFields.password && authFieldErrors.password)} aria-describedby={authTouchedFields.password && authFieldErrors.password ? 'auth-password-error' : undefined} required />
                       <VisibilityToggle visible={passwordVisible} onToggle={() => setPasswordVisible((visible) => !visible)} />
                     </span>
                     {authTouchedFields.password && authFieldErrors.password && <span className="auth-field-error" id="auth-password-error" role="alert">{authFieldErrors.password}</span>}
@@ -12325,7 +13913,6 @@ function App() {
                   </label>
                   {authMode === 'signup' && (
                     <label>
-                      <span className="auth-field-label">Conferma password</span>
                       <span className="auth-input-wrap">
                         <LockKeyhole className="auth-input-icon" aria-hidden="true" />
                         <input
@@ -12333,6 +13920,8 @@ function App() {
                           type="password"
                           autoComplete="new-password"
                           maxLength="72"
+                          placeholder="Conferma password"
+                          aria-label="Conferma password"
                           aria-invalid={Boolean(authTouchedFields.confirmPassword && authFieldErrors.confirmPassword)}
                           aria-describedby={authTouchedFields.confirmPassword && authFieldErrors.confirmPassword ? 'auth-confirm-password-error' : undefined}
                           required
@@ -12344,8 +13933,24 @@ function App() {
                 </>
               )}
               {authError && <p className="form-error" role="alert">{authError}</p>}
-              <button className="button button-accent form-submit header-glossy-accent" type="submit" disabled={authBusy || (!authReady && authMode !== 'admin-pin') || (adminPinRequired && adminPinSecondsRemaining <= 0)}>
-                {authBusy ? 'Attendi…' : !authReady && authMode !== 'admin-pin' ? 'Verifica sessione…' : adminPinRequired ? adminPinSecondsRemaining <= 0 ? 'Tempo scaduto' : 'Accedi' : authMode === 'signup' ? 'Crea account' : 'Accedi'} {!adminPinRequired && <ArrowUpRight aria-hidden="true" />}
+              <button className={`button button-accent form-submit ${adminPinRequired ? 'header-glossy-accent' : 'auth-submit-pill'}`} type="submit" disabled={authBusy || (!authReady && authMode !== 'admin-pin') || (adminPinRequired && adminPinSecondsRemaining <= 0)}>
+                {adminPinRequired ? (
+                  adminPinSecondsRemaining <= 0 ? 'Tempo scaduto' : 'Accedi'
+                ) : authMode === 'signup' ? (
+                  <>
+                    <UserPlus className="auth-submit-register-icon" aria-hidden="true" />
+                    <span className="auth-login-divider" aria-hidden="true" />
+                    <span className="auth-login-label">{authBusy ? 'Attendi…' : !authReady ? 'Verifica…' : 'Registrati'}</span>
+                    <ArrowRight className="auth-login-arrow" aria-hidden="true" />
+                  </>
+                ) : (
+                  <>
+                    <UserRound className="auth-login-user-icon" aria-hidden="true" />
+                    <span className="auth-login-divider" aria-hidden="true" />
+                    <span className="auth-login-label">{authBusy ? 'Attendi…' : !authReady ? 'Verifica…' : 'Accedi'}</span>
+                    <ArrowRight className="auth-login-arrow" aria-hidden="true" />
+                  </>
+                )}
               </button>
             </form>
             {adminPinRequired && (

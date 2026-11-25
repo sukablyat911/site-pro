@@ -6,6 +6,7 @@ const publicAuthenticationPaths = new Set([
   '/api/users/me',
   '/api/users/admin-pin',
   '/api/users/logout',
+  '/api/users/account-deletion-request',
   '/api/admin/mfa/totp',
 ]);
 let settingsCache = null;

@@ -17,6 +17,8 @@ const adminSecurityEventSchema = new mongoose.Schema(
         'ip_blocked',
         'ip_throttled',
         'traffic_limit_reached',
+        'admin_account_created',
+        'admin_account_removed',
       ],
       required: true,
     },

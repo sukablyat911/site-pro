@@ -10,12 +10,14 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { connectDB } = require('./config/db');
 const { ensureIndexes } = require('./config/db');
+const logAdminActivity = require('./middleware/adminActivityLogger');
 const contactRoutes = require('./routes/contactRoutes');
 const siteRoutes = require('./routes/siteRoutes');
 const { router: analyticsRoutes, ensureAnalyticsIndexes } = require('./routes/analyticsRoutes');
 const { router: salesRoutes, ensureSalesIndexes } = require('./routes/salesRoutes');
 const userRoutes = require('./routes/userRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const reportRoutes = require('./routes/reportRoutes');
 const { router: vehicleRoutes, ensureVehicleInventory } = require('./routes/vehicleRoutes');
 const { router: sellSubmissionRoutes, ensureSellSubmissionIndexes } = require('./routes/sellSubmissionRoutes');
 const { router: purchaseRequestRoutes, ensurePurchaseRequestIndexes } = require('./routes/purchaseRequestRoutes');
@@ -24,12 +26,15 @@ const { router: rentalRequestRoutes, ensureRentalRequestIndexes } = require('./r
 const { router: visitRequestRoutes, ensureVisitRequestIndexes } = require('./routes/visitRequestRoutes');
 const { isContactEmailConfigured } = require('./services/contactEmail');
 const { configureAdminAccount } = require('./config/admin');
+const AdminActivityLog = require('./models/AdminActivityLog');
 const AdminSecurityEvent = require('./models/AdminSecurityEvent');
 const AdminPinAttempt = require('./models/AdminPinAttempt');
 const AdminSecurityAttempt = require('./models/AdminSecurityAttempt');
 const AdminSecuritySettings = require('./models/AdminSecuritySettings');
 const AdminTrafficCounter = require('./models/AdminTrafficCounter');
 const AdminInvitation = require('./models/AdminInvitation');
+const LegalDocument = require('./models/LegalDocument');
+const AccountDeletionRequest = require('./models/AccountDeletionRequest');
 const User = require('./models/User');
 const { adminTrafficGuard, invalidateSecuritySettingsCache } = require('./middleware/adminTrafficGuard');
 const { siteAvailabilityGuard } = require('./middleware/siteAvailabilityGuard');
@@ -38,6 +43,15 @@ const app = express();
 const port = process.env.PORT || 5000;
 const clientOrigin = process.env.CLIENT_ORIGIN;
 const clientDist = path.join(__dirname, '../client/dist');
+
+async function ensureAccountDeletionRequestIndexes() {
+  const indexes = await AccountDeletionRequest.collection.listIndexes().toArray();
+  const legacyUserIndex = indexes.find((index) => index.name === 'userId_1');
+  if (legacyUserIndex) {
+    await AccountDeletionRequest.collection.dropIndex(legacyUserIndex.name);
+  }
+  await AccountDeletionRequest.createIndexes();
+}
 
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
@@ -92,14 +106,16 @@ app.post('/api/admin/security/emergency-reset', async (req, res) => {
     return res.status(500).json({ error: 'Non è stato possibile ripristinare i limiti.' });
   }
 });
-app.use(express.json({ limit: '20kb' }));
+app.use(express.json({ limit: '120kb' }));
 app.use(siteAvailabilityGuard);
+app.use('/api', logAdminActivity);
 app.use('/api/site', siteRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/sales', salesRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/admin/reports', reportRoutes);
 app.use('/api/sell-submissions', sellSubmissionRoutes);
 app.use('/api/purchase-requests', purchaseRequestRoutes);
 app.use('/api/vehicle-price-offers', (req, res, next) => {
@@ -121,6 +137,64 @@ app.use('/uploads/site', express.static(path.join(__dirname, 'uploads/site'), {
   setHeaders: (res) => res.setHeader('X-Content-Type-Options', 'nosniff'),
 }));
 app.use('/api/vehicles', vehicleRoutes);
+
+function publicSiteOrigin(req) {
+  return (process.env.PUBLIC_SITE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+}
+
+function escapeXml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+app.get('/robots.txt', (req, res) => {
+  const origin = publicSiteOrigin(req);
+  res.type('text/plain').send([
+    'User-agent: *',
+    'Allow: /',
+    'Disallow: /admin',
+    'Disallow: /account',
+    'Disallow: /api/',
+    'Disallow: /uploads/',
+    `Sitemap: ${origin}/sitemap.xml`,
+    '',
+  ].join('\n'));
+});
+
+app.get('/sitemap.xml', async (req, res) => {
+  try {
+    const origin = publicSiteOrigin(req);
+    const staticPaths = ['/', '/catalogo', '/vendi-auto', '/contatti', '/privacy', '/termini-condizioni', '/cookie-policy', '/note-legali'];
+    const vehicles = await mongoose.connection.collection('vehicles')
+      .find({ status: { $ne: 'draft' } }, { projection: { _id: 0, id: 1, updatedAt: 1 } })
+      .toArray();
+    const urls = staticPaths.map((route) => ({
+      loc: `${origin}${route}`,
+    }));
+    vehicles.forEach((vehicle) => {
+      if (!vehicle.id) return;
+      urls.push({
+        loc: `${origin}/auto/${encodeURIComponent(vehicle.id)}`,
+        lastmod: vehicle.updatedAt instanceof Date ? vehicle.updatedAt.toISOString() : undefined,
+      });
+    });
+    const body = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+      ...urls.map((url) => `  <url><loc>${escapeXml(url.loc)}</loc>${url.lastmod ? `<lastmod>${escapeXml(url.lastmod)}</lastmod>` : ''}</url>`),
+      '</urlset>',
+      '',
+    ].join('\n');
+    res.type('application/xml').set('Cache-Control', 'public, max-age=900').send(body);
+  } catch (error) {
+    console.error('Could not generate sitemap:', error);
+    return res.status(500).type('text/plain').send('Sitemap temporarily unavailable.');
+  }
+});
 
 if (fs.existsSync(clientDist)) {
   app.use(express.static(clientDist, {
@@ -153,7 +227,10 @@ async function startServer() {
   await AdminPinAttempt.createIndexes();
   await AdminSecurityAttempt.createIndexes();
   await AdminInvitation.createIndexes();
+  await LegalDocument.createIndexes();
+  await ensureAccountDeletionRequestIndexes();
   await User.createIndexes();
+  await AdminActivityLog.createIndexes();
   await AdminSecurityEvent.createIndexes();
   await AdminTrafficCounter.createIndexes();
   await ensureVehicleInventory();

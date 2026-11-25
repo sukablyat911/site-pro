@@ -76,6 +76,14 @@ const userSchema = new mongoose.Schema(
       required: true,
       select: false,
     },
+    pendingCustomerEmail: {
+      type: new mongoose.Schema({
+        email: { type: String, required: true },
+        tokenHash: { type: String, required: true },
+        expiresAt: { type: Date, required: true },
+      }, { _id: false }),
+      select: false,
+    },
     role: {
       type: String,
       enum: ['user', 'admin'],

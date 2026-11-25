@@ -78,6 +78,12 @@ const adminSettingsSchema = new mongoose.Schema(
       trim: true,
       maxlength: 120,
     },
+    siteTitle: {
+      type: String,
+      default: 'PelusoGroup — La tua prossima auto',
+      trim: true,
+      maxlength: 160,
+    },
     contactEmail: {
       type: String,
       default: '',
@@ -119,6 +125,7 @@ const adminSettingsSchema = new mongoose.Schema(
       enum: ['available', 'draft'],
     },
     logoUrl: { type: String, default: '/images/logo.png', maxlength: 300 },
+    faviconUrl: { type: String, default: '/favicon.svg', maxlength: 300 },
     heroImageUrl: { type: String, default: '/images/mercedes-amg-c63-hero.jpg', maxlength: 300 },
     staffContacts: { type: [contactSchema], default: defaultContacts },
     openingHours: { type: [openingHoursSchema], default: defaultOpeningHours },

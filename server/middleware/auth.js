@@ -62,4 +62,11 @@ async function requireAdmin(req, res, next) {
   }
 }
 
-module.exports = { getAuthenticatedSession, getAuthenticatedUser, requireAdmin };
+function requireSuperAdmin(req, res, next) {
+  if (req.user?.username !== 'luigipeluso') {
+    return res.status(403).json({ error: 'Solo il Super Admin può gestire gli account amministratori.' });
+  }
+  return next();
+}
+
+module.exports = { getAuthenticatedSession, getAuthenticatedUser, requireAdmin, requireSuperAdmin };

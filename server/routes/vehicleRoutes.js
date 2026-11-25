@@ -5,6 +5,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const multer = require('multer');
 const { requireAdmin } = require('../middleware/auth');
+const { createVehicleReport, renderReport, renderVehiclePdf } = require('../services/reportExport');
 
 const router = express.Router();
 const uploadDirectory = path.resolve(__dirname, '../uploads/cars');
@@ -614,6 +615,35 @@ router.get('/metrics', async (_req, res) => {
   } catch (error) {
     console.error('Could not load public vehicle metrics:', error);
     return res.status(500).json({ error: 'Non è stato possibile caricare le statistiche delle richieste.' });
+  }
+});
+
+router.get('/export/:id', async (req, res) => {
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(req.params.id)) {
+    return res.status(400).json({ error: 'Identificativo auto non valido.' });
+  }
+  const format = typeof req.query.format === 'string' ? req.query.format.toLowerCase() : '';
+  if (!['json', 'xlsx', 'pdf'].includes(format)) {
+    return res.status(400).json({ error: 'Scegli un formato PDF, Excel o JSON.' });
+  }
+  try {
+    const vehicle = await mongoose.connection.collection('vehicles').findOne(
+      { id: req.params.id },
+      { projection: { _id: 0, viewCount: 0, purchaseRequestCount: 0, createdAt: 0, updatedAt: 0 } },
+    );
+    if (!vehicle) return res.status(404).json({ error: 'Auto non trovata.' });
+    const report = createVehicleReport(vehicle);
+    const title = `Scheda auto - ${report.rows[0].vehicle}`;
+    const rendered = format === 'pdf'
+      ? renderVehiclePdf(report, title)
+      : renderReport(report, format, title);
+    res.set('Cache-Control', 'no-store');
+    res.set('Content-Type', rendered.contentType);
+    res.set('Content-Disposition', `attachment; filename="pelusogroup-auto-${req.params.id}.${rendered.extension}"`);
+    return res.send(rendered.body);
+  } catch (error) {
+    console.error('Could not export vehicle information:', error);
+    return res.status(500).json({ error: 'Non è stato possibile scaricare la scheda auto.' });
   }
 });
 
