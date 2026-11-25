@@ -1,124 +1,183 @@
 # Peluso Group
 
-A dark automotive marketplace built with React, Node.js, Express, and MongoDB.
+Un marketplace automobilistico con tema scuro, sviluppato con React, Node.js, Express e MongoDB.
 
-For an Italian overview of the PRO site's features, see the [user guide](./GUIDA-PRO.md).
-Legal document drafts are in [`legal/`](./legal/); complete the marked
-placeholders and obtain legal review before publishing the site. After login,
-administrators can edit the published Markdown versions from
-**Dashboard → Impostazioni → Documenti legali**; saved versions are stored in
-MongoDB and override the repository drafts.
+Per una panoramica in italiano delle funzionalità del sito PRO, consulta la [guida utente](./GUIDA-PRO.md).
 
-The server generates `robots.txt` and a vehicle-aware `sitemap.xml`. Public
-routes also expose Open Graph metadata and Schema.org data for the dealership
-and individual vehicles. Signed-in customers can manage their credentials and
-delete their account from **Area personale → Privacy e account**.
+Le bozze dei documenti legali si trovano nella cartella [`legal/`](./legal/); completa i campi contrassegnati come segnaposto e sottoponili a una revisione legale prima di pubblicare il sito. Dopo aver effettuato l'accesso, gli amministratori possono modificare le versioni Markdown pubblicate da **Dashboard → Impostazioni → Documenti legali**. Le versioni salvate vengono archiviate in MongoDB e sostituiscono le bozze presenti nel repository.
 
-## Tech Stack
-- Frontend: React + Vite + custom responsive CSS
-- Backend: Node.js + Express
-- Database: MongoDB
+Il server genera automaticamente `robots.txt` e un file `sitemap.xml` che tiene conto dei veicoli presenti nel catalogo. Le pagine pubbliche espongono anche i metadati Open Graph e i dati Schema.org relativi alla concessionaria e ai singoli veicoli.
 
-## Folder Structure
-- `client/` - frontend application
-- `server/` - backend API
+I clienti autenticati possono gestire le proprie credenziali ed eliminare il proprio account dalla sezione **Area personale → Privacy e account**.
 
-## Getting Started
+## Stack tecnologico
 
-1. Copy `.env.example` to `.env`, set `MONGO_URI`, and configure the `SMTP_*` values for the mailbox that will send contact notifications.
+- Frontend: React + Vite + CSS personalizzato e responsive.
+- Backend: Node.js + Express.
+- Database: MongoDB.
 
-2. Install root dependencies
+## Struttura delle cartelle
+
+- `client/` - applicazione frontend.
+- `server/` - API backend.
+
+## Guida all'installazione
+
+1. Copia il file `.env.example` in `.env`, imposta `MONGO_URI` e configura i valori `SMTP_*` relativi alla casella di posta che invierà le notifiche dei messaggi di contatto.
+
+2. Installa le dipendenze principali:
+
+   ```bash
    npm install
+   ```
 
-3. Install client dependencies
+3. Installa le dipendenze del client:
+
+   ```bash
    cd client
    npm install
+   ```
 
-4. Start the app
+4. Avvia l'applicazione:
+
+   ```bash
    cd ..
    npm run dev
+   ```
 
-5. Open the app in your browser
-   http://localhost:5173
+5. Apri l'applicazione nel browser:
 
-## Accounts and contact form
+   `http://localhost:5173`
 
-Account signup and sign-in use MongoDB-backed users and server-side sessions.
-Passwords are hashed before storage; session tokens are kept in HTTP-only cookies.
-Customers must confirm their current password to change credentials or delete an
-account. Email changes also require a code sent to the new address via SMTP.
-Previously submitted requests retain the contact details supplied with them.
-Deleting an account immediately removes access and revokes sessions; existing
-requests, conversations, purchases and reviews remain stored separately, while
-the deleted account is no longer shown as the buyer in the sales history.
-Contact messages are stored in the `contact_inquiries` collection and emailed to
-`CONTACT_EMAIL` (defaults to `luigi_peluso26@proton.me`). Configure `SMTP_HOST`,
-`SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, and `SMTP_PASS` in `.env`; `SMTP_FROM`
-is optional and defaults to `SMTP_USER`. Use the SMTP credentials or app-specific
-token issued by your email provider, not necessarily your normal account password.
-For Proton Mail, use its SMTP submission credentials/token and provider-approved
-sender address. The API reports an error if SMTP is missing or delivery fails;
-the submitted inquiry remains stored in MongoDB and its email status is recorded.
-Visitors can request a dealership appointment from an auto detail page by choosing
-a future date and time. Requests are stored in the `dealer_visit_requests`
-collection and managed in `/admin/visits`; admins may provide a reason when
-accepting or declining, and the decision is emailed to the customer when SMTP is
-configured. Admin notification failures are shown in the admin area while the
-request remains available there.
-Vehicle listings are read from MongoDB; there is no built-in example inventory.
-The admin can add, edit, or remove listings at `/admin`. Vehicle photos uploaded
-there are stored in `server/uploads/cars/` and served by the application. Keep this
-directory on persistent storage when deploying; uploaded files are excluded from Git.
-Listings can include up to 20 JPEG, PNG, or WebP images, up to 8 MB each, and
-the admin can choose which uploaded photo is displayed as the primary listing image.
-Listings can also include optional engine power in kW, emissions class (for example,
-Euro 6D), and inspection year; these details are shown in the vehicle information
-view when provided.
-Signed-in customers can submit a private vehicle-sale proposal with vehicle
-information and up to 20 photos. These proposals are not public listings: admins
-can review them, update their status, accept or reject the proposal, or send a
-counteroffer and messages in `/admin/messages`. Customers can follow each
-proposal's status and continue the private conversation from `/account`.
-Customers can also submit a price offer on an in-stock vehicle for sale, with an
-optional comment, from the `/account` price-offers section. Offers,
-counteroffers, and replies appear in a chronological negotiation history;
-customers can accept or reject a counteroffer or submit a new price there. Admins
-manage these negotiations from the dedicated `/admin/offers` workspace.
-Proposal photos are stored separately in `server/uploads/sell-submissions/` and
-served only to admins and the customer who owns the proposal. Keep this upload
-directory on persistent storage in production.
-From the admin inventory, mark a vehicle for sale as sold and select the customer
-account (by its registered email). This moves a snapshot of the car into the public
-sales history without removing its photos. Only the assigned customer account can
-submit one review for that purchase from `/account`. The review is published with
-the customer's consent and first name; the admin can view it in `/admin/messages`.
+## Account e modulo di contatto
 
-Admin access is configured with `ADMIN_USERNAME`, `ADMIN_PASSWORD_HASH`,
-`ADMIN_PIN_HASH`, and optionally `ADMIN_EMAIL` in `.env`. Leave the username and
-password hash unset to disable admin access. Admin sign-in requires the password
-and then a four-digit PIN; the PIN is stored as a bcrypt hash, never in source.
-Create bcrypt hashes without putting credentials in source:
+La registrazione e l'accesso agli account utilizzano utenti archiviati in MongoDB e sessioni gestite lato server.
 
-```sh
+Le password vengono sottoposte ad hashing prima di essere salvate; i token di sessione vengono conservati in cookie HTTP-only.
+
+Per modificare le credenziali o eliminare un account, i clienti devono confermare la propria password attuale. Anche le modifiche all'indirizzo e-mail richiedono un codice di verifica inviato al nuovo indirizzo tramite SMTP.
+
+Le richieste inviate in precedenza mantengono i dati di contatto forniti al momento dell'invio.
+
+L'eliminazione di un account revoca immediatamente l'accesso e invalida tutte le sessioni. Le richieste, le conversazioni, gli acquisti e le recensioni esistenti rimangono archiviati separatamente, mentre l'account eliminato non viene più mostrato come acquirente nello storico delle vendite.
+
+I messaggi inviati tramite il modulo di contatto vengono salvati nella raccolta `contact_inquiries` e inviati via e-mail a `CONTACT_EMAIL` (il valore predefinito è `luigi_peluso26@proton.me`).
+
+Configura le seguenti variabili nel file `.env`:
+
+- `SMTP_HOST`
+- `SMTP_PORT`
+- `SMTP_SECURE`
+- `SMTP_USER`
+- `SMTP_PASS`
+
+La variabile `SMTP_FROM` è facoltativa e, se non specificata, utilizza il valore di `SMTP_USER`.
+
+Utilizza le credenziali SMTP o il token specifico per le applicazioni fornito dal tuo gestore di posta elettronica, che potrebbe essere diverso dalla normale password dell'account.
+
+Per Proton Mail, utilizza le credenziali o il token SMTP di invio e un indirizzo mittente autorizzato dal provider.
+
+L'API restituisce un errore se la configurazione SMTP è assente o se l'invio non va a buon fine. Tuttavia, la richiesta inviata rimane salvata in MongoDB e il relativo stato di invio dell'e-mail viene registrato.
+
+I visitatori possono richiedere un appuntamento presso la concessionaria direttamente dalla pagina dei dettagli di un'auto, selezionando una data e un orario futuri.
+
+Le richieste vengono salvate nella raccolta `dealer_visit_requests` e gestite dalla sezione `/admin/visits`.
+
+Gli amministratori possono specificare una motivazione quando accettano o rifiutano una richiesta. Se SMTP è configurato, la decisione viene comunicata al cliente tramite e-mail.
+
+Eventuali problemi nell'invio delle notifiche agli amministratori vengono mostrati nell'area amministrativa, mentre la richiesta rimane comunque disponibile per la gestione.
+
+Gli annunci dei veicoli vengono letti da MongoDB: non è presente un inventario dimostrativo preconfigurato.
+
+L'amministratore può aggiungere, modificare o eliminare gli annunci dalla sezione `/admin`.
+
+Le fotografie dei veicoli caricate da quest'area vengono salvate in `server/uploads/cars/` e rese disponibili tramite l'applicazione.
+
+Durante la distribuzione in produzione, assicurati che questa directory utilizzi uno spazio di archiviazione persistente. I file caricati sono esclusi da Git.
+
+Ogni annuncio può includere fino a 20 immagini nei formati JPEG, PNG o WebP, con una dimensione massima di 8 MB ciascuna.
+
+L'amministratore può inoltre scegliere quale delle immagini caricate utilizzare come immagine principale dell'annuncio.
+
+Gli annunci possono includere anche informazioni facoltative relative a:
+
+- Potenza del motore in kW.
+- Classe di emissioni (ad esempio Euro 6D).
+- Anno di revisione.
+
+Questi dettagli vengono mostrati nella scheda informativa del veicolo, se disponibili.
+
+I clienti autenticati possono inviare una proposta privata di vendita del proprio veicolo, inserendo le relative informazioni e allegando fino a 20 fotografie.
+
+Queste proposte non vengono pubblicate come annunci visibili al pubblico.
+
+Gli amministratori possono esaminarle, aggiornarne lo stato, accettarle o rifiutarle, oppure inviare una controproposta e scambiare messaggi tramite `/admin/messages`.
+
+I clienti possono monitorare lo stato di ogni proposta e proseguire la conversazione privata dalla sezione `/account`.
+
+I clienti possono anche presentare un'offerta sul prezzo di un veicolo disponibile in magazzino, aggiungendo eventualmente un commento, dalla sezione dedicata alle offerte di prezzo in `/account`.
+
+Le offerte, le controproposte e le risposte vengono visualizzate in uno storico cronologico della negoziazione.
+
+I clienti possono accettare o rifiutare una controproposta oppure inviare una nuova offerta economica direttamente da questa sezione.
+
+Gli amministratori gestiscono queste trattative dall'area dedicata `/admin/offers`.
+
+Le fotografie allegate alle proposte vengono archiviate separatamente in `server/uploads/sell-submissions/` e sono accessibili esclusivamente agli amministratori e al cliente proprietario della proposta.
+
+In ambiente di produzione, assicurati che anche questa directory utilizzi uno spazio di archiviazione persistente.
+
+Dall'inventario amministrativo, è possibile contrassegnare un veicolo in vendita come venduto e selezionare l'account del cliente acquirente tramite il suo indirizzo e-mail registrato.
+
+Questa operazione trasferisce una copia dei dati dell'auto nello storico pubblico delle vendite, senza eliminare le relative fotografie.
+
+Solo l'account del cliente associato alla vendita può inviare una recensione per quell'acquisto, direttamente dalla sezione `/account`.
+
+La recensione viene pubblicata con il consenso del cliente e con il suo nome. L'amministratore può visualizzarla in `/admin/messages`.
+
+## Accesso amministratore e sicurezza
+
+L'accesso amministrativo viene configurato tramite le seguenti variabili nel file `.env`:
+
+- `ADMIN_USERNAME`
+- `ADMIN_PASSWORD_HASH`
+- `ADMIN_PIN_HASH`
+- `ADMIN_EMAIL` (facoltativa).
+
+Lascia non impostati il nome utente e l'hash della password per disabilitare l'accesso amministrativo.
+
+L'accesso all'area amministrativa richiede prima la password e successivamente un PIN di quattro cifre.
+
+Il PIN viene salvato sotto forma di hash bcrypt e non viene mai memorizzato direttamente nel codice sorgente.
+
+Per generare gli hash bcrypt senza inserire le credenziali nel codice sorgente, utilizza i seguenti comandi:
+
+```bash
 node -e "require('bcryptjs').hash(process.argv[1], 12).then(console.log)" "choose-a-unique-strong-password"
+
 node -e "require('bcryptjs').hash(process.argv[1], 12).then(console.log)" "choose-your-four-digit-pin"
 ```
 
-Set the generated values as `ADMIN_PASSWORD_HASH` and `ADMIN_PIN_HASH`. The PIN
-must be exactly four digits. After the password is accepted, the server creates
-a restricted verification session that expires after 60 seconds; the PIN prompt
-opens on a dedicated page, shows a countdown and leaves admin APIs unavailable
-until the PIN is verified.
-Three incorrect PINs trigger a 30-minute lockout
-across the admin account, even across new sessions or network changes. Logging
-out revokes every server session for that account and clears the browser cookie. The admin role is
-provisioned on server startup. Never deploy with the weak example password
-`123password`; replace it with a strong unique password before exposing the site
-publicly.
+Inserisci i valori generati nelle variabili `ADMIN_PASSWORD_HASH` e `ADMIN_PIN_HASH`.
 
-The team contact cards still show a placeholder phone number for Luigi and a
-reserved example address for Gerardo. Confirm those details before publishing
-the site.
+Il PIN deve essere composto esattamente da quattro cifre.
 
-## Production Build
-   npm run build
+Dopo aver verificato correttamente la password, il server crea una sessione di verifica con privilegi limitati, che scade dopo 60 secondi.
+
+La schermata di inserimento del PIN viene aperta in una pagina dedicata, mostra un conto alla rovescia e mantiene inaccessibili le API amministrative fino alla corretta verifica del PIN.
+
+Tre tentativi errati di inserimento del PIN comportano un blocco di 30 minuti sull'intero account amministratore, anche in caso di nuove sessioni o cambiamenti della rete.
+
+La disconnessione revoca tutte le sessioni server associate a quell'account e cancella il cookie del browser.
+
+Il ruolo di amministratore viene configurato automaticamente all'avvio del server.
+
+Non distribuire mai il sito utilizzando la password di esempio debole `123password`. Sostituiscila con una password robusta e univoca prima di rendere il sito accessibile pubblicamente.
+
+## Informazioni di contatto del team
+
+Le schede dei contatti del team mostrano ancora un numero di telefono segnaposto per Luigi e un indirizzo di esempio riservato per Gerardo.
+
+Verifica e conferma questi dati prima di pubblicare il sito.
+
+## Build di produzione
