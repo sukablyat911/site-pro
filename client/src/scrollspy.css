@@ -1,0 +1,199 @@
+.home-scrollspy {
+  position: fixed;
+  z-index: 25;
+  top: 110px;
+  bottom: 18px;
+  left: clamp(18px, 2vw, 32px);
+  box-sizing: border-box;
+  width: 44px;
+  padding: 10px 0;
+  border: 1px solid rgba(255, 255, 255, .09);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(23, 25, 29, .96), rgba(11, 12, 14, .92));
+  box-shadow: inset 0 1px rgba(255, 255, 255, .055), 0 12px 32px rgba(0, 0, 0, .24);
+}
+
+.home-scrollspy-list {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  flex-direction: column;
+  justify-content: space-between;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-scrollspy-list::before,
+.home-scrollspy-list::after {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  width: 1px;
+  content: "";
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.home-scrollspy-list::before {
+  bottom: 14px;
+  background: linear-gradient(180deg, rgba(117, 124, 134, .22), #454a52 18%, #454a52 82%, rgba(117, 124, 134, .22));
+}
+
+.home-scrollspy-list::after {
+  z-index: 1;
+  bottom: 14px;
+  width: 2px;
+  background: linear-gradient(180deg, #69bdff, #1687ff 72%, #0c65cb);
+  box-shadow: 0 0 9px rgba(22, 135, 255, .62);
+  transform: translateX(-50%) scaleY(var(--scrollspy-progress, 0));
+  transform-origin: 50% 0;
+}
+
+.home-scrollspy-item {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  min-height: 0;
+  flex: 0 0 36px;
+  place-items: center;
+}
+
+.home-scrollspy-link {
+  position: relative;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: none;
+  color: #a7abb2;
+  cursor: pointer;
+  font: inherit;
+  transition: none;
+}
+
+.home-scrollspy-dot {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 50%;
+  background-color: #1a1d22;
+  transition: background-color .2s ease, box-shadow .2s ease;
+}
+
+.home-scrollspy-icon {
+  width: 20px;
+  height: 20px;
+  color: #b7bec8;
+  stroke-width: 1.8;
+  transition: color .2s ease, transform .2s ease;
+}
+
+.home-scrollspy-item.is-active .home-scrollspy-dot,
+.home-scrollspy-link:hover .home-scrollspy-dot,
+.home-scrollspy-link:focus-visible .home-scrollspy-dot {
+  background-color: #123759;
+  box-shadow: 0 0 0 3px rgba(22, 135, 255, .1), 0 0 14px rgba(22, 135, 255, .3);
+}
+
+.home-scrollspy-item.is-active .home-scrollspy-icon,
+.home-scrollspy-link:hover .home-scrollspy-icon,
+.home-scrollspy-link:focus-visible .home-scrollspy-icon {
+  color: #87caff;
+}
+
+.home-scrollspy-link:hover .home-scrollspy-icon,
+.home-scrollspy-link:focus-visible .home-scrollspy-icon {
+  transform: translateY(-1px);
+}
+
+.home-scrollspy-link:focus-visible {
+  outline: 1px solid rgba(22, 135, 255, .85);
+  outline-offset: 3px;
+}
+
+.home-scrollspy-tooltip {
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 11px);
+  box-sizing: border-box;
+  width: max-content;
+  max-width: 160px;
+  padding: 9px 14px;
+  border: 1px solid rgba(255, 255, 255, .16);
+  border-left: 2px solid #258cff;
+  border-radius: 8px;
+  background: rgba(25, 28, 33, .72);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .28), inset 0 1px rgba(255, 255, 255, .08);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  color: #eceff4;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .13em;
+  line-height: 1.25;
+  opacity: 0;
+  pointer-events: none;
+  text-transform: uppercase;
+  transform: translate(-5px, -50%);
+  transition: opacity .18s ease, transform .18s ease;
+  text-align: center;
+  white-space: normal;
+}
+
+.home-scrollspy-item.is-active .home-scrollspy-tooltip,
+.home-scrollspy-link:hover .home-scrollspy-tooltip,
+.home-scrollspy-link:focus-visible .home-scrollspy-tooltip {
+  opacity: 1;
+  transform: translate(0, -50%);
+}
+
+.vehicle-detail-page-shell .home-scrollspy {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.vehicle-detail-page-shell .home-scrollspy-list::after {
+  transition: transform .12s linear;
+}
+
+.vehicle-detail-page-shell .home-scrollspy-tooltip {
+  background: rgba(25, 28, 33, .25);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  text-shadow: 0 1px 3px #000;
+}
+
+.vehicle-detail-page-shell .home-scrollspy-item:not(.is-active) .home-scrollspy-link:hover .home-scrollspy-dot,
+.vehicle-detail-page-shell .home-scrollspy-item:not(.is-active) .home-scrollspy-link:focus-visible .home-scrollspy-dot {
+  background-color: #292d33;
+  box-shadow: none;
+}
+
+.vehicle-detail-page-shell .home-scrollspy-item:not(.is-active) .home-scrollspy-link:hover .home-scrollspy-icon,
+.vehicle-detail-page-shell .home-scrollspy-item:not(.is-active) .home-scrollspy-link:focus-visible .home-scrollspy-icon {
+  color: #e0e4e9;
+}
+
+@media (max-width: 900px) {
+  .home-scrollspy {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-scrollspy-dot,
+  .home-scrollspy-icon,
+  .home-scrollspy-tooltip,
+  .vehicle-detail-page-shell .home-scrollspy-list::after {
+    transition: none;
+  }
+}

@@ -6275,6 +6275,233 @@ function CustomerAccountSettings({ user, onUserUpdated, onDeleted, onCookieSetti
   );
 }
 
+const HOME_SCROLLSPY_ICONS = {
+  home: Home,
+  'home-featured': CarFront,
+  'popular-brands': Tag,
+  services: Wrench,
+  'sold-cars': Truck,
+  about: UsersRound,
+  reviews: Star,
+  'home-faq': Info,
+};
+
+const VEHICLE_SCROLLSPY_ICONS = {
+  overview: CarFront,
+  gallery: ImagePlus,
+  details: Info,
+  specifications: ClipboardList,
+  maintenance: Wrench,
+  features: Check,
+};
+
+function getScrollspyActivationLine(main) {
+  const header = main?.closest('.site-shell')?.querySelector('.public-main-header');
+  const headerBottom = Math.max(0, header?.getBoundingClientRect().bottom || 0);
+  return headerBottom + (window.innerHeight - headerBottom) * 0.3;
+}
+
+function getVehicleScrollspyStops(sections, main) {
+  const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+  const activationLine = getScrollspyActivationLine(main);
+  const stops = sections.map((section) => Math.min(maxScroll, Math.max(0, window.scrollY + section.element.getBoundingClientRect().top - activationLine)));
+  if (stops.length < 2) return stops;
+
+  // Keep short sections near the page end reachable during normal wheel scrolling.
+  const minimumGap = Math.min(160, stops[stops.length - 1] / (stops.length - 1));
+  for (let index = stops.length - 2; index > 0; index -= 1) {
+    stops[index] = Math.max(0, Math.min(stops[index], stops[index + 1] - minimumGap));
+  }
+  stops[0] = 0;
+  return stops;
+}
+
+function SectionScrollspy({ rootSelector, label, icons, activateAtStart = false }) {
+  const [sections, setSections] = useState([]);
+  const [activeSection, setActiveSection] = useState('');
+  const navRef = useRef(null);
+  const sectionsRef = useRef([]);
+  const activeSectionRef = useRef('');
+
+  useEffect(() => {
+    const main = document.querySelector(rootSelector)?.closest('main');
+    if (!main) return undefined;
+
+    const observedSections = new Set();
+    let progressFrame = 0;
+    const updateActiveSection = () => {
+      if (activateAtStart) {
+        const currentSections = sectionsRef.current;
+        if (!currentSections.length) return;
+
+        const stops = getVehicleScrollspyStops(currentSections, main);
+        let current = currentSections[0];
+        currentSections.forEach((section, index) => {
+          if (window.scrollY + 1 >= stops[index]) current = section;
+        });
+
+        if (current.id !== activeSectionRef.current) {
+          activeSectionRef.current = current.id;
+          setActiveSection(current.id);
+        }
+        return;
+      }
+
+      const viewportCenter = window.innerHeight * 0.5;
+      let closestSection = null;
+      let closestDistance = Number.POSITIVE_INFINITY;
+
+      sectionsRef.current.forEach((section) => {
+        const bounds = section.element.getBoundingClientRect();
+        const distance = bounds.top <= viewportCenter && bounds.bottom >= viewportCenter
+          ? 0
+          : Math.min(Math.abs(bounds.top - viewportCenter), Math.abs(bounds.bottom - viewportCenter));
+        if (distance < closestDistance) {
+          closestSection = section;
+          closestDistance = distance;
+        }
+      });
+
+      if (closestSection && closestSection.id !== activeSectionRef.current) {
+        activeSectionRef.current = closestSection.id;
+        setActiveSection(closestSection.id);
+      }
+    };
+
+    const updateProgress = () => {
+      const currentSections = sectionsRef.current;
+      if (!navRef.current || currentSections.length < 2) return;
+
+      if (activateAtStart) {
+        const stops = getVehicleScrollspyStops(currentSections, main);
+        let index = 0;
+        while (index < stops.length - 1 && window.scrollY >= stops[index + 1]) index += 1;
+        const distance = stops[index + 1] - stops[index];
+        const fraction = index < stops.length - 1 && distance > 0
+          ? Math.min(1, Math.max(0, (window.scrollY - stops[index]) / distance))
+          : 0;
+        navRef.current.style.setProperty('--scrollspy-progress', String((index + fraction) / (stops.length - 1)));
+        return;
+      }
+
+      const firstTop = currentSections[0].element.getBoundingClientRect().top + window.scrollY;
+      const lastTop = currentSections[currentSections.length - 1].element.getBoundingClientRect().top + window.scrollY;
+      const progress = lastTop > firstTop
+        ? Math.min(1, Math.max(0, (window.scrollY - firstTop) / (lastTop - firstTop)))
+        : 0;
+      navRef.current.style.setProperty('--scrollspy-progress', String(progress));
+    };
+
+    const scheduleProgressUpdate = () => {
+      if (progressFrame) return;
+      progressFrame = window.requestAnimationFrame(() => {
+        progressFrame = 0;
+        if (activateAtStart) updateActiveSection();
+        updateProgress();
+      });
+    };
+
+    const intersectionObserver = new IntersectionObserver(updateActiveSection, {
+      rootMargin: '-42% 0px -42% 0px',
+      threshold: 0,
+    });
+
+    const syncSections = () => {
+      const nextSections = Array.from(main.querySelectorAll('[data-scrollspy]')).map((element) => ({
+        id: element.getAttribute('data-scrollspy'),
+        label: element.getAttribute('data-scrollspy-label') || '',
+        element,
+      })).filter((section) => section.id && section.label);
+      const nextElements = new Set(nextSections.map((section) => section.element));
+
+      observedSections.forEach((element) => {
+        if (!nextElements.has(element)) {
+          intersectionObserver.unobserve(element);
+          observedSections.delete(element);
+        }
+      });
+      nextSections.forEach((section) => {
+        if (!observedSections.has(section.element)) {
+          intersectionObserver.observe(section.element);
+          observedSections.add(section.element);
+        }
+      });
+
+      const previousIds = sectionsRef.current.map((section) => section.id).join('|');
+      const nextIds = nextSections.map((section) => section.id).join('|');
+      sectionsRef.current = nextSections;
+      if (previousIds !== nextIds) {
+        setSections(nextSections.map(({ id, label }) => ({ id, label })));
+      }
+      if (!nextSections.some((section) => section.id === activeSectionRef.current)) {
+        activeSectionRef.current = nextSections[0]?.id || '';
+        setActiveSection(activeSectionRef.current);
+      }
+
+      updateActiveSection();
+      scheduleProgressUpdate();
+    };
+
+    const mutationObserver = new MutationObserver(syncSections);
+    mutationObserver.observe(main, { childList: true, subtree: true });
+    syncSections();
+    window.addEventListener('scroll', scheduleProgressUpdate, { passive: true });
+    window.addEventListener('resize', scheduleProgressUpdate);
+
+    return () => {
+      mutationObserver.disconnect();
+      intersectionObserver.disconnect();
+      window.removeEventListener('scroll', scheduleProgressUpdate);
+      window.removeEventListener('resize', scheduleProgressUpdate);
+      if (progressFrame) window.cancelAnimationFrame(progressFrame);
+    };
+  }, [rootSelector, activateAtStart]);
+
+  if (!sections.length) return null;
+
+  return (
+    <nav className="home-scrollspy" ref={navRef} aria-label={label}>
+      <ol className="home-scrollspy-list">
+        {sections.map((section) => {
+          const Icon = icons[section.id] || Circle;
+          return (
+            <li className={`home-scrollspy-item${activeSection === section.id ? ' is-active' : ''}`} key={section.id}>
+              <button
+                className="home-scrollspy-link"
+                type="button"
+                aria-label={`Vai alla sezione ${section.label}`}
+                aria-current={activeSection === section.id ? 'location' : undefined}
+                onClick={() => {
+                  const target = sectionsRef.current.find((item) => item.id === section.id);
+                  if (!target) return;
+                  activeSectionRef.current = section.id;
+                  setActiveSection(section.id);
+                  const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+                  if (activateAtStart) {
+                    const targetIndex = sectionsRef.current.findIndex((item) => item.id === section.id);
+                    const stops = getVehicleScrollspyStops(sectionsRef.current, target.element.closest('main'));
+                    window.scrollTo({
+                      top: stops[targetIndex] + 1,
+                      behavior,
+                    });
+                  } else {
+                    target.element.scrollIntoView({ behavior, block: 'start' });
+                  }
+                }}
+              >
+                <span className="home-scrollspy-dot" aria-hidden="true">
+                  <Icon className="home-scrollspy-icon" aria-hidden="true" />
+                </span>
+                <span className="home-scrollspy-tooltip" aria-hidden="true">{section.label}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
+  );
+}
+
 function App() {
   const initialCatalogFilters = useMemo(() => readCatalogFilters(), []);
   const prefersReducedMotion = useReducedMotion();
@@ -6321,6 +6548,8 @@ function App() {
   );
   const completedPasswordRequirements = passwordRequirements.filter((requirement) => requirement.valid).length;
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuRendered, setMenuRendered] = useState(false);
+  const [menuClosing, setMenuClosing] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [confirmDialogBusy, setConfirmDialogBusy] = useState(false);
@@ -6341,6 +6570,7 @@ function App() {
   const menuToggleRef = useRef(null);
   const menuCloseRef = useRef(null);
   const menuDrawerRef = useRef(null);
+  const menuCloseTimeoutRef = useRef(null);
   const cartToggleRef = useRef(null);
   const cartCloseRef = useRef(null);
   const cartDrawerRef = useRef(null);
@@ -7205,7 +7435,13 @@ function App() {
   const isSiteSettingsLoading = !isAdminArea && !isAdminEntryCandidate && !isNotFoundPage && !siteSettingsLoaded;
   useEffect(() => {
     if (!isSiteUnavailable) return;
+    if (menuCloseTimeoutRef.current) {
+      window.clearTimeout(menuCloseTimeoutRef.current);
+      menuCloseTimeoutRef.current = null;
+    }
     setMenuOpen(false);
+    setMenuRendered(false);
+    setMenuClosing(false);
     setCartOpen(false);
     setCookieSettingsOpen(false);
     setAuthMode('');
@@ -8408,8 +8644,7 @@ function App() {
     menuCloseRef.current?.focus();
     const closeOnEscape = (event) => {
       if (event.key === 'Escape') {
-        setMenuOpen(false);
-        menuToggleRef.current?.focus({ preventScroll: true });
+        closeMenu();
         return;
       }
 
@@ -8435,7 +8670,7 @@ function App() {
     };
     const closeOnOutsidePointer = (event) => {
       if (menuDrawerRef.current && !menuDrawerRef.current.contains(event.target)) {
-        setMenuOpen(false);
+        closeMenu(false);
       }
     };
 
@@ -8447,6 +8682,12 @@ function App() {
       document.removeEventListener('pointerdown', closeOnOutsidePointer);
     };
   }, [menuOpen]);
+
+  useEffect(() => () => {
+    if (menuCloseTimeoutRef.current) {
+      window.clearTimeout(menuCloseTimeoutRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     if (!cartOpen) return undefined;
@@ -8486,8 +8727,28 @@ function App() {
     };
   }, [cartOpen]);
 
+  function openMenu() {
+    if (menuCloseTimeoutRef.current) {
+      window.clearTimeout(menuCloseTimeoutRef.current);
+      menuCloseTimeoutRef.current = null;
+    }
+    setMenuRendered(true);
+    setMenuClosing(false);
+    setMenuOpen(true);
+  }
+
   function closeMenu(restoreFocus = true) {
     setMenuOpen(false);
+    setMenuClosing(true);
+    if (menuCloseTimeoutRef.current) {
+      window.clearTimeout(menuCloseTimeoutRef.current);
+    }
+    const closeAnimationDuration = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 220;
+    menuCloseTimeoutRef.current = window.setTimeout(() => {
+      setMenuRendered(false);
+      setMenuClosing(false);
+      menuCloseTimeoutRef.current = null;
+    }, closeAnimationDuration);
     if (restoreFocus) menuToggleRef.current?.focus({ preventScroll: true });
   }
 
@@ -10288,7 +10549,7 @@ function App() {
                 aria-label="Apri il menu di navigazione"
                 aria-expanded={menuOpen}
                 aria-controls="site-menu"
-                onClick={() => setMenuOpen(true)}
+                onClick={openMenu}
               >
                 <Menu size={20} strokeWidth={1.8} aria-hidden="true" />
                 <span className="public-header-action-label">Menu</span>
@@ -10388,7 +10649,7 @@ function App() {
             aria-label="Apri il menu di navigazione"
             aria-expanded={menuOpen}
             aria-controls="site-menu"
-            onClick={() => setMenuOpen(true)}
+            onClick={openMenu}
           >
             <Menu size={20} strokeWidth={1.8} aria-hidden="true" />
             <span className="menu-toggle-label">MENU</span>
@@ -10396,10 +10657,26 @@ function App() {
         </div>
           </>
         )}
-        {menuOpen && (
+        {menuRendered && (
           <>
-            <button className="menu-backdrop" type="button" aria-label="Chiudi il menu di navigazione" onClick={closeMenu} />
-            <aside className="menu-drawer" id="site-menu" ref={menuDrawerRef} role="dialog" aria-modal="true" aria-labelledby="menu-title">
+            <button
+              className={`menu-backdrop${menuClosing ? ' is-closing' : ''}`}
+              type="button"
+              aria-label="Chiudi il menu di navigazione"
+              onClick={closeMenu}
+              tabIndex={menuOpen ? 0 : -1}
+              disabled={!menuOpen}
+            />
+            <aside
+              className={`menu-drawer${menuClosing ? ' is-closing' : ''}`}
+              id="site-menu"
+              ref={menuDrawerRef}
+              role="dialog"
+              aria-modal={menuOpen}
+              aria-hidden={!menuOpen}
+              inert={!menuOpen}
+              aria-labelledby="menu-title"
+            >
               <div className="drawer-topline">
                 <a className="brand" href="/" onClick={(event) => { event.preventDefault(); closeMenu(); navigateToHome(); }}>
                   <img className="brand-logo" src={siteSettings.logoUrl || DEFAULT_SITE_SETTINGS.logoUrl} alt={businessName} />
@@ -10599,7 +10876,7 @@ function App() {
         ) : activeVehicle ? (
           <section className="vehicle-detail section-wrap" aria-labelledby="vehicle-detail-title">
             <div className="vehicle-detail-content-layout">
-            <div className="vehicle-detail-heading">
+            <div className="vehicle-detail-heading" data-scrollspy="overview" data-scrollspy-label="Panoramica">
               <div>
                 <p className="eyebrow vehicle-detail-status"><span />{activeVehicle.type === 'rent' ? 'DISPONIBILE A NOLEGGIO' : 'DISPONIBILE PER L’ACQUISTO'}</p>
                 <h1 id="vehicle-detail-title">{activeVehicle.make} <em>{activeVehicle.model}</em></h1>
@@ -10626,7 +10903,7 @@ function App() {
               </div>
             </section>
             <div className="vehicle-detail-layout">
-              <div className="vehicle-detail-gallery-column">
+              <div className="vehicle-detail-gallery-column" data-scrollspy="gallery" data-scrollspy-label="Foto">
                 <div
                   className="vehicle-detail-image"
                   ref={detailImageFrameRef}
@@ -11004,7 +11281,7 @@ function App() {
               </aside>
             </div>
             <section className="vehicle-detail-panel">
-                <div className="vehicle-panel-heading">
+                <div className="vehicle-panel-heading" data-scrollspy="details" data-scrollspy-label="Scheda auto">
                   {detailImages[0] && (
                     <img
                       className="vehicle-panel-hero-image"
@@ -11042,7 +11319,7 @@ function App() {
                   <span aria-hidden="true" />
                   <h3>Caratteristiche <em>tecniche</em></h3>
                 </div>
-                <div className="vehicle-spec-groups">
+                <div className="vehicle-spec-groups" data-scrollspy="specifications" data-scrollspy-label="Dati tecnici">
                   {[
                     {
                       icon: 'car',
@@ -11172,12 +11449,12 @@ function App() {
                     L’idoneità per neopatentati è indicativa: verifica sempre i limiti di legge aggiornati e i dati riportati sul libretto prima di guidare.
                   </p>
                 )}
-                <div className="vehicle-maintenance-history">
+                <div className="vehicle-maintenance-history" data-scrollspy="maintenance" data-scrollspy-label="Manutenzione">
                   <h2><SiteIcon name="warranty" /> Storico manutenzione</h2>
                   <p className="vehicle-section-caption vehicle-maintenance-intro">Interventi e riferimenti di manutenzione disponibili per questo veicolo.</p>
                   <p className="vehicle-maintenance-value">{activeVehicle.maintenanceHistory || <span className="is-unspecified">Non specificato</span>}</p>
                 </div>
-                <section className="vehicle-detail-features" id="vehicle-detail-features" aria-labelledby="vehicle-features-title">
+                <section className="vehicle-detail-features" id="vehicle-detail-features" data-scrollspy="features" data-scrollspy-label="Dotazioni" aria-labelledby="vehicle-features-title">
                   <h2 id="vehicle-features-title"><SiteIcon name="check" /> Dotazioni</h2>
                   <p className="vehicle-section-caption vehicle-features-intro">Equipaggiamenti e accessori riportati nella scheda dell’auto.</p>
                   {(activeVehicle.features || []).length > 0 ? (
@@ -12257,7 +12534,7 @@ function App() {
         {!isCatalogPage && (
           <MotionConfig reducedMotion="user">
           <>
-        <section className="hero" id="home">
+        <section className="hero" id="home" data-scrollspy="home" data-scrollspy-label="Inizio">
           <motion.div
             className="hero-image"
             initial={{ opacity: 0.65, scale: 1.075 }}
@@ -12354,6 +12631,9 @@ function App() {
         {(homeFeaturedVehicles.buy.length > 0 || homeFeaturedVehicles.rent.length > 0) && (
           <motion.section
             className="home-featured-inventory section-wrap"
+            id="home-featured"
+            data-scrollspy="home-featured"
+            data-scrollspy-label="Auto in vetrina"
             aria-labelledby="home-featured-title"
             initial={{ opacity: 0, y: 22 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -12418,6 +12698,9 @@ function App() {
 
         {!isCatalogPage && <motion.section
           className="popular-brands section-wrap"
+          id="popular-brands"
+          data-scrollspy="popular-brands"
+          data-scrollspy-label="Marchi"
           aria-labelledby="popular-brands-title"
           initial={{ opacity: 0, y: 22 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -12504,6 +12787,8 @@ function App() {
         <motion.section
           className="home-start section-wrap"
           id="services"
+          data-scrollspy="services"
+          data-scrollspy-label="Servizi"
           ref={servicesRef}
           aria-labelledby="home-start-title"
           initial={{ opacity: 0, y: 22 }}
@@ -12970,6 +13255,9 @@ function App() {
           <>
         <motion.section
           className="sold-cars-section section-wrap"
+          id="sold-cars"
+          data-scrollspy="sold-cars"
+          data-scrollspy-label="Auto vendute"
           aria-labelledby="sold-cars-title"
           initial={{ opacity: 0, y: 22 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -13055,6 +13343,8 @@ function App() {
         <motion.section
           className="about-section section-wrap"
           id="about"
+          data-scrollspy="about"
+          data-scrollspy-label="Chi siamo"
           aria-labelledby="about-title"
           initial={{ opacity: 0, y: 22 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -13138,6 +13428,9 @@ function App() {
 
         <motion.section
           className="reviews-section section-wrap"
+          id="reviews"
+          data-scrollspy="reviews"
+          data-scrollspy-label="Recensioni"
           aria-labelledby="reviews-title"
           initial={{ opacity: 0, y: 22 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -13224,6 +13517,9 @@ function App() {
         </motion.section>
         <motion.section
           className="home-faq section-wrap"
+          id="home-faq"
+          data-scrollspy="home-faq"
+          data-scrollspy-label="FAQ"
           aria-labelledby="home-faq-title"
           initial={{ opacity: 0, y: 22 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -13251,6 +13547,9 @@ function App() {
         )}
         </div>}
       </main>
+
+      {isHomePage && !isSiteUnavailable && !isSiteSettingsLoading && !isNotFoundPage && !isAdminRouteBlocked && <SectionScrollspy rootSelector="#home" label="Navigazione delle sezioni della home" icons={HOME_SCROLLSPY_ICONS} />}
+      {activeVehicle && !isSiteUnavailable && !isSiteSettingsLoading && !isNotFoundPage && !isAdminRouteBlocked && <SectionScrollspy key={activeVehicle.id} rootSelector=".vehicle-detail" label="Navigazione delle sezioni della scheda auto" icons={VEHICLE_SCROLLSPY_ICONS} activateAtStart />}
 
       {!activeVehicle && !isUnknownVehiclePage && !isAdminArea && !isAccountPage && !isNotFoundPage && !isAdminRouteBlocked && !isSiteUnavailable && !isSiteSettingsLoading && <footer className="site-footer">
         <div className={`footer-main${user?.role === 'admin' ? ' is-admin-view' : ''}`}>

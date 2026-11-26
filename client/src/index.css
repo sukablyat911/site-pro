@@ -698,7 +698,7 @@ textarea:focus-visible {
     radial-gradient(ellipse at 2% 28%, color-mix(in srgb, var(--brand-accent-deep) 8%, transparent), transparent 44%),
     #101012;
   box-shadow: 30px 0 90px rgba(0, 0, 0, .35);
-  animation: drawer-in .38s cubic-bezier(.2, .8, .2, 1) both;
+  animation: drawer-in .22s cubic-bezier(.2, .8, .2, 1) both;
 }
 
 .menu-drawer::-webkit-scrollbar {
@@ -1513,7 +1513,7 @@ textarea:focus-visible {
   outline-offset: 3px;
 }
 
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .home-featured-heading {
     align-items: flex-start;
     flex-direction: column;
@@ -2296,7 +2296,7 @@ textarea:focus-visible {
 
 .search-icon {
   font-size: 20px;
-  line-height: 1;
+  line-height: 1.25;
 }
 
 .search-field input {
@@ -23553,17 +23553,55 @@ body *::after {
 .site-shell[data-theme="public"] .vehicle-detail .vehicle-detail-price-block {
   align-content: start;
   justify-items: stretch;
+  gap: 12px;
+  padding: 22px 24px;
+  border-color: #343438;
+  border-radius: 16px;
+  background:
+    radial-gradient(ellipse at 100% 0, rgba(255, 255, 255, .07), transparent 58%),
+    linear-gradient(145deg, #242426, #101012 78%);
+  box-shadow: inset 0 1px rgba(255, 255, 255, .08), 0 18px 40px rgba(0, 0, 0, .3);
 }
 
 .site-shell[data-theme="public"] .vehicle-detail .vehicle-detail-price-block > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
   justify-self: start;
   margin-bottom: 2px;
+  color: #bfc0c4;
+  font-size: 10px;
+  letter-spacing: .16em;
+}
+
+.site-shell[data-theme="public"] .vehicle-detail .vehicle-detail-price-block > span:first-child::before {
+  width: 22px;
+  height: 1px;
+  background: #85858b;
+  content: "";
 }
 
 .site-shell[data-theme="public"] .vehicle-detail .vehicle-detail-price-block .vehicle-discount-price-line {
   justify-content: flex-start;
   align-items: baseline;
   gap: 7px 10px;
+}
+
+.site-shell[data-theme="public"] .vehicle-detail .vehicle-detail-price-block .vehicle-detail-price {
+  color: #f3f3f5;
+  font-size: clamp(27px, 3vw, 36px);
+  letter-spacing: -.035em;
+  line-height: 1.15;
+}
+
+.site-shell[data-theme="public"] .vehicle-detail .vehicle-detail-price-block .vehicle-discounted-price {
+  color: #8beaab;
+}
+
+.site-shell[data-theme="public"] .vehicle-detail .vehicle-detail-price-block .vehicle-price-vat {
+  border-color: rgba(255, 255, 255, .14);
+  background: rgba(255, 255, 255, .05);
+  color: #c7c7cb;
 }
 
 .site-shell[data-theme="public"] .vehicle-detail .vehicle-detail-price-block.is-regular-price {
@@ -42969,8 +43007,8 @@ color: #c8cfcb;
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .site-shell[data-theme="public"] .site-header:not([class~="admin-site-header"]) .menu-drawer {
-    animation: drawer-in .26s cubic-bezier(.22, .8, .2, 1) both;
+  .site-shell[data-theme="public"] .site-header:not([class~="admin-site-header"]) .menu-drawer:not(.is-closing) {
+    animation: drawer-in .22s cubic-bezier(.22, .8, .2, 1) both;
   }
 
   .site-shell[data-theme="public"] .site-header:not([class~="admin-site-header"]) .menu-drawer :is(.drawer-links > a, .drawer-links > button, .drawer-secondary > a, .drawer-account .button, .drawer-close) {
@@ -42995,7 +43033,7 @@ color: #c8cfcb;
 @media (prefers-reduced-motion: no-preference) {
   .site-shell[data-theme="public"] .site-header.public-main-header .menu-drawer :is(.drawer-links > a, .drawer-links > button, .drawer-secondary > a, .drawer-account .button, .drawer-close),
   .site-shell[data-theme="public"].catalog-page-shell .site-header .menu-drawer :is(.drawer-links > a, .drawer-links > button, .drawer-secondary > a, .drawer-account .button, .drawer-close) {
-    transition: background-color .08s ease-out, border-color .08s ease-out, color .08s ease-out !important;
+    transition: background-color .15s ease-out, border-color .15s ease-out, color .15s ease-out !important;
   }
 }
 
@@ -45828,6 +45866,14 @@ html:has(.site-shell[data-theme="public"].vehicle-detail-page-shell) {
   }
 }
 
+.site-shell[data-theme="public"] main > :is(#home-featured, #popular-brands, #services, #sold-cars, #about, #reviews, #home-faq) {
+  scroll-margin-top: clamp(76px, 10vh, 108px);
+}
+
+.site-shell[data-theme="public"] .vehicle-detail [data-scrollspy] {
+  scroll-margin-top: clamp(76px, 10vh, 108px);
+}
+
 .site-shell[data-theme="public"] .discount-podium .discount-podium-card:nth-child(n) {
   border: 1px solid rgba(78, 214, 196, .36);
   background: linear-gradient(145deg, #12191a, #101214);
@@ -45974,5 +46020,52 @@ html:has(.site-shell[data-theme="public"].vehicle-detail-page-shell) {
   padding: 5px 7px;
   text-align: center;
   white-space: nowrap;
+}
+
+.site-shell[data-theme="public"] .menu-backdrop {
+  -webkit-backdrop-filter: blur(6px) saturate(105%);
+  backdrop-filter: blur(6px) saturate(105%);
+}
+
+.site-shell[data-theme="public"] .menu-drawer {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.menu-drawer.is-closing {
+  animation: drawer-out .22s cubic-bezier(.4, 0, .8, .2) both !important;
+  pointer-events: none;
+}
+
+.menu-backdrop.is-closing {
+  animation: backdrop-out .22s ease-in both;
+  pointer-events: none;
+}
+
+@keyframes drawer-out {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+}
+
+@keyframes backdrop-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .menu-drawer.is-closing,
+  .menu-backdrop.is-closing {
+    animation-duration: 1ms !important;
+  }
 }
 
